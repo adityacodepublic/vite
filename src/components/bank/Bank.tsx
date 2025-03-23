@@ -3,8 +3,6 @@ import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { ToolCall } from "../../lib/live/multimodal-live-types";
 import vegaEmbed from "vega-embed";
 import { declaration, functionsmap } from "../../lib/toolcall/declerations";
-import Header from "../header/header";
-import NavButtons from "../buttons/buttons";
 
 function BankDetailsComponent() {
   const [tool, setTool] = useState<string | null>(null);

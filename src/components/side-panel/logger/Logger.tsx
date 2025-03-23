@@ -3,7 +3,7 @@ import "./logger.scss";
 import { Part } from "@google/generative-ai";
 import cn from "classnames";
 import { ReactNode } from "react";
-import { useLoggerStore } from "../../lib/live/store-logger";
+import { useLoggerStore } from "@/lib/live/store-logger";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { vs2015 as dark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import {
@@ -11,7 +11,7 @@ import {
   isClientContentMessage,
   isInterrupted,
   isModelTurn,
-  isServerContenteMessage,
+  isServerContentMessage,
   isToolCallCancellationMessage,
   isToolCallMessage,
   isToolResponseMessage,
@@ -22,7 +22,7 @@ import {
   ToolCallCancellationMessage,
   ToolCallMessage,
   ToolResponseMessage,
-} from "../../lib/live/multimodal-live-types";
+} from "@/lib/live/multimodal-live-types";
 
 const formatTime = (d: Date) => d.toLocaleTimeString().slice(0, -3);
 
@@ -127,7 +127,6 @@ const ToolCallLog = ({ message }: Message) => {
   const { toolCall } = message as ToolCallMessage;
   return (
     <div className={cn("rich-log tool-call")}>
-      ``
       {toolCall.functionCalls.map((fc, i) => (
         <div key={fc.id} className="part part-functioncall">
           <h5>Function call: {fc.name}</h5>
@@ -203,7 +202,7 @@ const filters: Record<LoggerFilterType, (log: StreamingLog) => boolean> = {
     isToolResponseMessage(log.message) ||
     isToolCallCancellationMessage(log.message),
   conversations: (log: StreamingLog) =>
-    isClientContentMessage(log.message) || isServerContenteMessage(log.message),
+    isClientContentMessage(log.message) || isServerContentMessage(log.message),
   none: () => true,
 };
 
@@ -223,7 +222,7 @@ const component = (log: StreamingLog) => {
   if (isToolResponseMessage(log.message)) {
     return ToolResponseLog;
   }
-  if (isServerContenteMessage(log.message)) {
+  if (isServerContentMessage(log.message)) {
     const { serverContent } = log.message;
     if (isInterrupted(serverContent)) {
       return CustomPlainTextLog("interrupted");

@@ -1,9 +1,10 @@
+import "./App.css";
 import cn from "classnames";
 import { useRef, useState } from "react";
-import "./App.css";
+import { BankDetails } from "./components/bank/Bank";
+import SidePanel from "./components/side-panel/SidePanel";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
-import { BankDetails } from "./components/bank/Bank";
 
 //import { addTransaction, fetchUserBalance, p2ptransfer } from "./lib/toolcall/functions";
 //console.log(await addTransaction(106, 500, "debit", "user 102 sent money to 106."));
@@ -30,7 +31,7 @@ function App() {
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={API_KEY}>
         <div className="streaming-console">
-          {/* <SidePanel /> */}
+          <SidePanel />
           <main>
             <BankDetails />
             <div className="main-app-area">
@@ -49,9 +50,7 @@ function App() {
               videoRef={videoRef}
               supportsVideo={true}
               onVideoStreamChange={setVideoStream}
-            >
-              {/* put your own buttons here */}
-            </ControlTray>
+            ></ControlTray>
           </main>
         </div>
       </LiveAPIProvider>

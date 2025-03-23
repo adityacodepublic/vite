@@ -2,9 +2,7 @@
 
 This repository contains a financial assistant app for with voice video and screen sharing capablities, over a websocket. It provides modules for streaming audio playback, recording user media such as from a microphone, webcam or screen capture as well as a unified log view to aid in development of your application.
 
-
 ![Screenshot 2025-01-07 232624](https://github.com/user-attachments/assets/0b18134d-61c7-46fc-99f4-e97d9b4af434)
-
 
 ## development
 
@@ -37,4 +35,10 @@ Your app is ready to be deployed!
 
 See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
+add
 
+```bash
+tsc -b &&
+```
+
+to package.json
