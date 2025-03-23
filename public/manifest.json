@@ -1,0 +1,27 @@
+{
+  "name": "Financial Assistant",
+  "short_name": "Modal",
+  "description": "A voice based bank assistant. interact with video, voice, text, and screen page. talk do transactions, check balance and many more just by talking.",
+  "start_url": "/",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icons/icon-256x256.png",
+      "sizes": "256x256"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512"
+    }
+  ]
+}
