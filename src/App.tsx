@@ -2,7 +2,7 @@ import "./App.css";
 import cn from "classnames";
 import { useRef, useState } from "react";
 import { BankDetails } from "./components/bank/Bank";
-import SidePanel from "./components/side-panel/SidePanel";
+// import SidePanel from "./components/side-panel/SidePanel";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
 
@@ -31,7 +31,7 @@ function App() {
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={API_KEY}>
         <div className="streaming-console">
-          <SidePanel />
+          {/* <SidePanel /> */}
           <main>
             <BankDetails />
             <div className="main-app-area">
