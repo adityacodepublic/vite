@@ -30,16 +30,19 @@ function App() {
   return (
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={API_KEY}>
-        <div className="streaming-console">
+        <div className=" bg-[#e0ecf46d] text-gray-300 streaming-console flex h-screen w-screen">
           {/* <SidePanel /> */}
           <main>
             <BankDetails />
-            <div className="main-app-area">
+            <div className="flex flex-[1] items-center flex-col mt-2">
               {/* APP goes here */}
               <video
-                className={cn("stream", {
-                  hidden: !videoRef.current || !videoStream,
-                })}
+                className={cn(
+                  "flex-grow max-w-[90%] rounded-[32px] max-h-[fit-content] mt-2",
+                  {
+                    hidden: !videoRef.current || !videoStream,
+                  }
+                )}
                 ref={videoRef}
                 autoPlay
                 playsInline
