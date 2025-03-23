@@ -1,8 +1,8 @@
-import { audioContext } from "./utils";
-import AudioRecordingWorklet from "./worklets/audio-processing";
-import VolMeterWorket from "./worklets/vol-meter";
+import { audioContext } from "@/lib/live/chat-utils";
+import AudioRecordingWorklet from "../worklets/audio-processing";
+import VolMeterWorket from "../worklets/vol-meter";
 
-import { createWorketFromSrc } from "./audioworklet-registry";
+import { createWorketFromSrc } from "@/lib/live/audioworklet-registry";
 import EventEmitter from "eventemitter3";
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {

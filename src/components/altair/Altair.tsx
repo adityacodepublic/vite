@@ -2,7 +2,7 @@ import { type FunctionDeclaration, SchemaType } from "@google/generative-ai";
 import { useEffect, useRef, useState, memo } from "react";
 import vegaEmbed from "vega-embed";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { ToolCall } from "../../multimodal-live-types";
+import { ToolCall } from "../../lib/live/multimodal-live-types";
 
 const declaration: FunctionDeclaration = {
   name: "render_altair",

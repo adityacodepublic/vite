@@ -21,10 +21,9 @@ import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
 import { useWebcam } from "../../hooks/use-webcam";
-import { AudioRecorder } from "../../lib/audio-recorder";
+import { AudioRecorder } from "../../lib/live/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
-
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -41,8 +40,6 @@ type MediaStreamButtonProps = {
   stop: () => any;
 };
 
-
-
 /**
  * button used for triggering webcam or screen-capture
  */
@@ -56,7 +53,7 @@ const MediaStreamButton = memo(
       <button className="action-button" onClick={start}>
         <span className="material-symbols-outlined">{offIcon}</span>
       </button>
-    ),
+    )
 );
 
 function ControlTray({
@@ -65,10 +62,10 @@ function ControlTray({
   onVideoStreamChange = () => {},
   supportsVideo,
 }: ControlTrayProps) {
-  const videoStreams = [useWebcam(),useScreenCapture()];
+  const videoStreams = [useWebcam(), useScreenCapture()];
   const [activeVideoStream, setActiveVideoStream] =
     useState<MediaStream | null>(null);
-    const [textInput, setTextInput] = useState("");
+  const [textInput, setTextInput] = useState("");
   const [webcam, screenCapture] = videoStreams;
   const [inVolume, setInVolume] = useState(0);
   const [audioRecorder] = useState(() => new AudioRecorder());
@@ -79,14 +76,14 @@ function ControlTray({
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
 
-    const handleSubmit = () => {
-      client.send([{ text: textInput }]);
-  
-      setTextInput("");
-      if (inputRef.current) {
-        inputRef.current.innerText = "";
-      }
-    };
+  const handleSubmit = () => {
+    client.send([{ text: textInput }]);
+
+    setTextInput("");
+    if (inputRef.current) {
+      inputRef.current.innerText = "";
+    }
+  };
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
@@ -96,7 +93,7 @@ function ControlTray({
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--volume",
-      `${Math.max(5, Math.min(inVolume * 200, 8))}px`,
+      `${Math.max(5, Math.min(inVolume * 200, 8))}px`
     );
   }, [inVolume]);
 
@@ -229,46 +226,44 @@ function ControlTray({
               stop={changeStreams()}
               onIcon="videocam_off"
               offIcon="videocam"
-            /> 
+            />
           </>
         )}
         {children}
       </nav>
 
-    
       <div className={cn("input-container", { disabled: !connected })}>
-              <div className="input-content">
-                <textarea
-                  className="input-area"
-                  ref={inputRef}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleSubmit();
-                    }
-                  }}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  value={textInput}
-                ></textarea>
-                <span
-                  className={cn("input-content-placeholder", {
-                    hidden: textInput.length,
-                  })}
-                >
-                  Type&nbsp;something...
-                </span>
-      
-                <button
-                  className="send-button material-symbols-outlined filled"
-                  onClick={handleSubmit}
-                >
-                  send
-                </button>
-              </div>
-            </div>
+        <div className="input-content">
+          <textarea
+            className="input-area"
+            ref={inputRef}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSubmit();
+              }
+            }}
+            onChange={(e) => setTextInput(e.target.value)}
+            value={textInput}
+          ></textarea>
+          <span
+            className={cn("input-content-placeholder", {
+              hidden: textInput.length,
+            })}
+          >
+            Type&nbsp;something...
+          </span>
+
+          <button
+            className="send-button material-symbols-outlined filled"
+            onClick={handleSubmit}
+          >
+            send
+          </button>
+        </div>
+      </div>
     </section>
-    
   );
 }
 

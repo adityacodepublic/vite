@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MultimodalLiveAPIClientConnection,
   MultimodalLiveClient,
-} from "../lib/multimodal-live-client";
-import { LiveConfig } from "../multimodal-live-types";
-import { AudioStreamer } from "../lib/audio-streamer";
-import { audioContext } from "../lib/utils";
-import VolMeterWorket from "../lib/worklets/vol-meter";
+} from "@/lib/live/multimodal-live-client";
+import { LiveConfig } from "@/lib/live/multimodal-live-types";
+import { AudioStreamer } from "@/lib/live/audio-streamer";
+import { audioContext } from "@/lib/live/chat-utils";
+import VolMeterWorket from "@/lib/worklets/vol-meter";
 
 export type UseLiveAPIResults = {
   client: MultimodalLiveClient;

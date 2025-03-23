@@ -13,7 +13,7 @@ import {
   addComplaint,
   fetchIssuedLoanSchemes,
   p2ptransfer,
-} from "../../lib/toolcall/functions";
+} from "@/lib/toolcall/functions";
 
 export const functionsmap: Record<string, any> = {
   render_altair: (args: { json_graph: string }) => {
@@ -49,10 +49,25 @@ export const functionsmap: Record<string, any> = {
     type: "credit" | "debit";
     description?: string;
   }) => {
-    return addTransaction(args.userid, args.amount, args.type, args.description);
+    return addTransaction(
+      args.userid,
+      args.amount,
+      args.type,
+      args.description
+    );
   },
-  transferToPerson: (args: { userid: number, recieverid:number, amount:number, description:string }) => {
-    return p2ptransfer(args.userid, args.recieverid, args.amount, args.description);
+  transferToPerson: (args: {
+    userid: number;
+    recieverid: number;
+    amount: number;
+    description: string;
+  }) => {
+    return p2ptransfer(
+      args.userid,
+      args.recieverid,
+      args.amount,
+      args.description
+    );
   },
   issuedScheme: (args: {
     userid: string;
@@ -71,12 +86,12 @@ export const functionsmap: Record<string, any> = {
       args.tenure
     );
   },
-  createComplaint: (args :{userid:number, complainttext:string}) => {
+  createComplaint: (args: { userid: number; complainttext: string }) => {
     return addComplaint(args.userid, args.complainttext);
   },
-  getIssuedLoanSchemes:(args: { userid: number }) => {
+  getIssuedLoanSchemes: (args: { userid: number }) => {
     return fetchIssuedLoanSchemes(args.userid);
-  } 
+  },
 };
 
 export const declaration: FunctionDeclaration[] = [
@@ -316,18 +331,20 @@ export const declaration: FunctionDeclaration[] = [
         },
         recieverid: {
           type: SchemaType.NUMBER,
-          description: "The reciever's user id to recieve the transfered money.",
+          description:
+            "The reciever's user id to recieve the transfered money.",
         },
-        amount:{
+        amount: {
           type: SchemaType.NUMBER,
-          description: "Amount to be transefer from the sender to the rceiver"
+          description: "Amount to be transefer from the sender to the rceiver",
         },
         description: {
           type: SchemaType.STRING,
-          description: "Automatically generate a description of the money transfer process. eg. sender sent to reciever. dont ask description from user auto generate it."
-        }
+          description:
+            "Automatically generate a description of the money transfer process. eg. sender sent to reciever. dont ask description from user auto generate it.",
+        },
       },
-      required: ["userid","recieverid","amount","description"],
+      required: ["userid", "recieverid", "amount", "description"],
     },
   },
   {
@@ -341,12 +358,13 @@ export const declaration: FunctionDeclaration[] = [
           type: SchemaType.NUMBER,
           description: "The user's account number to fetch details",
         },
-        complainttext:{
+        complainttext: {
           type: SchemaType.STRING,
-          description:"A string field where the user provides detailed information about their complaint or issue. This can include any concerns, problems, or feedback the user wishes to report "
-        }
+          description:
+            "A string field where the user provides detailed information about their complaint or issue. This can include any concerns, problems, or feedback the user wishes to report ",
+        },
       },
-      required: ["userid","complainttext"],
+      required: ["userid", "complainttext"],
     },
   },
   {
@@ -364,6 +382,4 @@ export const declaration: FunctionDeclaration[] = [
       required: ["userid"],
     },
   },
-  
-
 ];

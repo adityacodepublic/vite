@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, memo } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { ToolCall } from "../../multimodal-live-types";
+import { ToolCall } from "../../lib/live/multimodal-live-types";
 import vegaEmbed from "vega-embed";
 import { declaration, functionsmap } from "../../lib/toolcall/declerations";
 import Header from "../header/header";
