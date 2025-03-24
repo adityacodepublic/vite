@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, memo } from "react";
-import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { ToolCall } from "../../lib/live/multimodal-live-types";
+import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
+import { ToolCall } from "@/lib/live/multimodal-live-types";
 import vegaEmbed from "vega-embed";
-import { declaration, functionsmap } from "../../lib/toolcall/declerations";
+import { declaration, functionsmap } from "@/lib/toolcall/declarations";
 
 function BankDetailsComponent() {
   const [tool, setTool] = useState<string | null>(null);
