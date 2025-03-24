@@ -1,13 +1,20 @@
 import cn from "classnames";
-
 import { memo, ReactNode, RefObject, useEffect, useRef, useState } from "react";
-import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
-import { useScreenCapture } from "../../hooks/use-screen-capture";
-import { useWebcam } from "../../hooks/use-webcam";
-import { AudioRecorder } from "../../lib/live/audio-recorder";
+import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
+import { UseMediaStreamResult } from "@/hooks/use-media-stream-mux";
+import { useScreenCapture } from "@/hooks/use-screen-capture";
+import { useWebcam } from "@/hooks/use-webcam";
+import { ArrowUp, Square } from "lucide-react";
+import { AudioRecorder } from "@/lib/live/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputActions,
+  PromptInputAction,
+} from "../ui/prompt-input";
+import { Button } from "../ui/button";
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -56,17 +63,13 @@ function ControlTray({
   const [muted, setMuted] = useState(false);
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
-
+  const isLoading = false;
   const handleSubmit = () => {
     client.send([{ text: textInput }]);
 
     setTextInput("");
-    if (inputRef.current) {
-      inputRef.current.innerText = "";
-    }
   };
 
   useEffect(() => {
@@ -215,38 +218,33 @@ function ControlTray({
         )}
         {children}
       </nav>
-
-      <div className={cn("input-container", { disabled: !connected })}>
-        <div className="input-content">
-          <textarea
-            className="input-area"
-            ref={inputRef}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSubmit();
-              }
-            }}
-            onChange={(e) => setTextInput(e.target.value)}
-            value={textInput}
-          ></textarea>
-          <span
-            className={cn("input-content-placeholder", {
-              hidden: textInput.length,
-            })}
+      <PromptInput
+        value={textInput}
+        onValueChange={setTextInput}
+        isLoading={isLoading}
+        onSubmit={handleSubmit}
+        className="w-full max-w-(--breakpoint-md) text-md"
+      >
+        <PromptInputTextarea placeholder="Ask me anything..." />
+        <PromptInputActions className="justify-end pt-2">
+          <PromptInputAction
+            tooltip={isLoading ? "Stop generation" : "Send message"}
           >
-            Type&nbsp;something...
-          </span>
-
-          <button
-            className="send-button material-symbols-outlined filled"
-            onClick={handleSubmit}
-          >
-            send
-          </button>
-        </div>
-      </div>
+            <Button
+              variant="default"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={handleSubmit}
+            >
+              {isLoading ? (
+                <Square className="size-6 fill-current" />
+              ) : (
+                <ArrowUp className="size-6" />
+              )}
+            </Button>
+          </PromptInputAction>
+        </PromptInputActions>
+      </PromptInput>
     </section>
   );
 }
