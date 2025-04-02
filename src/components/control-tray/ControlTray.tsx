@@ -8,11 +8,9 @@ import { useWebcam } from "@/hooks/use-webcam";
 import {
   ArrowUp,
   Ellipsis,
-  Globe,
   Mic,
   MicOff,
   MonitorOff,
-  Plus,
   ScreenShare,
   Square,
   Video,
