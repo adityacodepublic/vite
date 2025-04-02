@@ -1,4 +1,3 @@
-import "./App.css";
 import cn from "classnames";
 import { useRef, useState } from "react";
 import { BankDetails } from "./components/bank/Bank";
