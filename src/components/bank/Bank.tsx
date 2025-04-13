@@ -34,7 +34,8 @@ function BankDetailsComponent() {
             - Only respond when I ask a question—do not comment on every page interaction.  
             - When I ask a question about the documents, answer concisely and accurately.  
             - Do not repeatedly describe or summarize what you see—just answer my questions based on the stored information.    
-            - Dont hallucinate or give false information if you dont know or need more information tell so
+            - Dont hallucinate or give false information if you dont know some thing then ask for that information.
+            - if user tells to create any random or dummy data to create a chart then you can create it.
             - Understand the user's question, needs and expectations accurately before responding or taking necessary actions`,
             // 'You are my financial assistant.Your Job is to provide most truthful finance advice to me you will not state any bad advice or if there are any risk in your advice you will state them. Any time I ask you for a graph call the "render_altair" function I have provided you. Dont ask for additional information just make your best judgement. if possible, use the previous responses by the user or functions to answer. At the start greet the user have a talk if user starts a talk and then, before user asks anything related to his bank related things, ask him his userid and user name, then fetch his bankdetails from "fetchBankDetails" and verify the name and user id, if verified then continue with conversation or ask the userid and user name again. remember user id as it would be useful further. '
           },
@@ -98,7 +99,17 @@ function BankDetailsComponent() {
       typeof data === "string" &&
       tool === "render_altair"
     ) {
-      vegaEmbed(embedRef.current, JSON.parse(data));
+      vegaEmbed(embedRef.current, JSON.parse(data), {
+        theme: "powerbi",
+        config: {
+          axis: { labelFontSize: 16, titleFontSize: 20 },
+          legend: { labelFontSize: 14, titleFontSize: 18 },
+          background: "#FFFFFF80",
+          padding: 25,
+        },
+        width: 600,
+        height: 400,
+      });
     }
     setData(null);
   }, [embedRef, data]);

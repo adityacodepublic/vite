@@ -59,7 +59,8 @@ const MediaStreamButton = memo(
   }: MediaStreamButtonProps) =>
     isStreaming ? (
       <Button
-        className=" bg-background text-secondary-foreground hover:bg-secondary h-11 w-11 rounded-2xl font-semibold focus-visible:outline-black"
+        className=" bg-background text-secondary-foreground hover:bg-secondary h-10 w-10 rounded-2xl font-semibold focus-visible:outline-black"
+        variant={"ghost"}
         onClick={stop}
         disabled={disabled}
       >
@@ -67,7 +68,8 @@ const MediaStreamButton = memo(
       </Button>
     ) : (
       <Button
-        className=" bg-background text-secondary-foreground hover:bg-secondary h-11 w-11 rounded-2xl font-semibold focus-visible:outline-black"
+        className=" bg-background text-secondary-foreground hover:bg-secondary h-10 w-10 rounded-2xl font-semibold focus-visible:outline-black"
+        variant={"ghost"}
         onClick={start}
         disabled={disabled}
       >
@@ -101,11 +103,11 @@ function ControlTray({
     setTextInput("");
   };
 
-  useEffect(() => {
-    if (!connected && connectButtonRef.current) {
-      connectButtonRef.current.focus();
-    }
-  }, [connected]);
+  // useEffect(() => {
+  //   if (!connected && connectButtonRef.current) {
+  //     connectButtonRef.current.focus();
+  //   }
+  // }, [connected]);
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--volume",
@@ -195,7 +197,7 @@ function ControlTray({
   };
 
   return (
-    <section className="control-tray">
+    <section className="absolute -translate-x-2/4 translate-y-0 flex flex-col justify-end items-center gap-1 w-[95%] md:w-full pb-[16px] left-2/4 bottom-0">
       <canvas style={{ display: "none" }} ref={renderCanvasRef} />
 
       {children}
@@ -215,28 +217,25 @@ function ControlTray({
               className="duration-0 data-[state=closed]:duration-0"
               open={connected ? false : undefined}
               tooltip={
-                !connected ? (
-                  <div className="bg-black">
-                    <Arrow className="fill-black" />
-                    <span className="text-xs leading-none font-semibold text-white">
-                      Voice mode
-                    </span>
-                  </div>
-                ) : undefined
+                <div className="bg-black">
+                  <Arrow className="fill-black" />
+                  <span className="text-xs leading-none font-semibold text-white">
+                    Voice mode
+                  </span>
+                </div>
               }
             >
               <div
                 className={cn(
                   "flex [&_svg]:shrink-0 items-center justify-center border rounded-full border-input ",
-                  { disabled: !connected },
-                  connected ? "pl-1" : "pl-0"
+                  { disabled: !connected }
                 )}
               >
                 <button
                   ref={connectButtonRef}
                   onClick={connected ? disconnect : connect}
                   aria-label="Voice Mode"
-                  className="flex items-center justify-center  bg-background text-secondary-foreground hover:bg-secondary h-11 w-11 rounded-full font-semibold focus-visible:outline-black"
+                  className="flex items-center justify-center  bg-background text-secondary-foreground hover:bg-secondary h-10 w-10 rounded-full font-semibold focus-visible:outline-black"
                 >
                   {connected ? (
                     <AudioPulse
@@ -254,11 +253,11 @@ function ControlTray({
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
-                    className="flex gap-2 px-3"
+                    className="flex gap-2 px-4.5"
                   >
                     <Button
                       variant="ghost"
-                      className=" bg-background text-secondary-foreground hover:bg-secondary h-11 w-11 rounded-2xl font-semibold focus-visible:outline-black"
+                      className=" bg-background text-secondary-foreground hover:bg-secondary h-10 w-10 rounded-2xl font-semibold focus-visible:outline-black"
                       onClick={() => setMuted(!muted)}
                       disabled={!connected}
                     >

@@ -29,12 +29,13 @@ function App() {
   return (
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={API_KEY}>
-        <div className=" bg-[#e0ecf46d] text-gray-300 streaming-console flex h-screen w-screen">
+        <div className=" bg-[#e0ecf46d] text-gray-300 flex justify-center h-screen w-full overflow-y-scroll pb-20">
           {/* <SidePanel /> */}
-          <main>
-            <BankDetails />
-            <div className="flex flex-[1] items-center flex-col mt-2">
+          <div>
+            <div className="flex items-center flex-col mt-2">
               {/* APP goes here */}
+
+              <BankDetails />
               <video
                 className={cn(
                   "flex-grow max-w-[90%] rounded-[32px] max-h-[fit-content] mt-2",
@@ -52,8 +53,8 @@ function App() {
               videoRef={videoRef}
               supportsVideo={true}
               onVideoStreamChange={setVideoStream}
-            ></ControlTray>
-          </main>
+            />
+          </div>
         </div>
       </LiveAPIProvider>
     </div>

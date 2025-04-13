@@ -122,6 +122,19 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+.vega-embed canvas {
+  border-radius: 20px; /* Example styling */
+}
+
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
