@@ -29,7 +29,7 @@ function App() {
   return (
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={API_KEY}>
-        <div className=" bg-[#e0ecf46d] text-gray-300 flex justify-center h-screen w-full overflow-y-scroll pb-20">
+        <div className=" bg-[#e0ecf46d] text-gray-300 flex justify-center h-screen w-full overflow-y-scroll">
           {/* <SidePanel /> */}
           <div>
             <div className="flex items-center flex-col mt-2">
