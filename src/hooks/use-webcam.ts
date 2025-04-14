@@ -26,7 +26,7 @@ export function useWebcam(): UseMediaStreamResult {
 
   const start = async () => {
     const mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
+      video: { facingMode: { ideal: "environment" } },
     });
     setStream(mediaStream);
     setIsStreaming(true);

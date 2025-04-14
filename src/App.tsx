@@ -32,9 +32,8 @@ function App() {
         <div className=" bg-[#e0ecf46d] text-gray-300 flex justify-center h-screen w-full overflow-y-scroll">
           {/* <SidePanel /> */}
           <div>
-            <div className="flex items-center flex-col mt-2">
+            <div className="flex items-center flex-col mt-2 pb-20">
               {/* APP goes here */}
-
               <BankDetails />
               <video
                 className={cn(
@@ -48,13 +47,13 @@ function App() {
                 playsInline
               />
             </div>
-
-            <ControlTray
-              videoRef={videoRef}
-              supportsVideo={true}
-              onVideoStreamChange={setVideoStream}
-            />
           </div>
+
+          <ControlTray
+            videoRef={videoRef}
+            supportsVideo={true}
+            onVideoStreamChange={setVideoStream}
+          />
         </div>
       </LiveAPIProvider>
     </div>
