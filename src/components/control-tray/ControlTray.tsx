@@ -209,7 +209,7 @@ function ControlTray({
         onSubmit={handleSubmit}
         className="w-full max-w-(--breakpoint-md) text-md"
       >
-        <PromptInputTextarea placeholder="Ask me anything..." />
+        <PromptInputTextarea placeholder="Turn on the voice mode & Ask me anything..." />
         <PromptInputActions className="flex items-center justify-between gap-2 pt-2">
           <div className="flex items-center gap-x-1.5">
             <PromptInputAction
