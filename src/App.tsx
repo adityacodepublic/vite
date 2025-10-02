@@ -1,23 +1,28 @@
 import cn from "classnames";
 import { useRef, useState } from "react";
 import { BankDetails } from "./components/bank/Bank";
-// import SidePanel from "./components/side-panel/SidePanel";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
+import { LiveClientOptions } from "./lib/live/types";
 
+// import SidePanel from "./components/side-panel/SidePanel";
 //import { addTransaction, fetchUserBalance, p2ptransfer } from "./lib/toolcall/functions";
 //console.log(await addTransaction(106, 500, "debit", "user 102 sent money to 106."));
 //console.log(await addTransaction(102, 500, "credit", "user 102 recieved money from 106."));
 //console.log(await p2ptransfer(106,102,500,"testing transfer"));
 //console.log(await fetchUserBalance(106))
 
+// const host = "generativelanguage.googleapis.com";
+// const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
+
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
   throw new Error("set VITE_GEMINI_APIK_KEY in .env");
 }
 
-const host = "generativelanguage.googleapis.com";
-const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
+const apiOptions: LiveClientOptions = {
+  apiKey: API_KEY,
+};
 
 function App() {
   // this video reference is used for displaying the active stream, whether that is the webcam or screen capture
@@ -28,7 +33,7 @@ function App() {
 
   return (
     <div className="App">
-      <LiveAPIProvider url={uri} apiKey={API_KEY}>
+      <LiveAPIProvider options={apiOptions}>
         <div className=" bg-[#e0ecf46d] text-gray-300 flex justify-center h-screen w-full overflow-y-scroll">
           {/* <SidePanel /> */}
           <div>

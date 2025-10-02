@@ -1,20 +1,19 @@
 import { createContext, FC, ReactNode, useContext } from "react";
 import { useLiveAPI, UseLiveAPIResults } from "../hooks/use-live-api";
+import { LiveClientOptions } from "@/lib/live/types";
 
 const LiveAPIContext = createContext<UseLiveAPIResults | undefined>(undefined);
 
 export type LiveAPIProviderProps = {
   children: ReactNode;
-  url?: string;
-  apiKey: string;
+  options: LiveClientOptions;
 };
 
 export const LiveAPIProvider: FC<LiveAPIProviderProps> = ({
-  url,
-  apiKey,
+  options,
   children,
 }) => {
-  const liveAPI = useLiveAPI({ url, apiKey });
+  const liveAPI = useLiveAPI(options);
 
   return (
     <LiveAPIContext.Provider value={liveAPI}>

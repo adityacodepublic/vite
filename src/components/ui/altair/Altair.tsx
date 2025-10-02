@@ -1,17 +1,21 @@
 import vegaEmbed from "vega-embed";
 import { useEffect, useRef, useState, memo } from "react";
-import { ToolCall } from "@/lib/live/multimodal-live-types";
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
-import { type FunctionDeclaration, SchemaType } from "@google/generative-ai";
+import {
+  FunctionDeclaration,
+  LiveServerToolCall,
+  Modality,
+  Type,
+} from "@google/genai";
 
 const declaration: FunctionDeclaration = {
   name: "render_altair",
   description: "Displays an altair graph in json format.",
   parameters: {
-    type: SchemaType.OBJECT,
+    type: Type.OBJECT,
     properties: {
       json_graph: {
-        type: SchemaType.STRING,
+        type: Type.STRING,
         description:
           "JSON STRING representation of the graph to render. Must be a string, not a json object",
       },
@@ -22,13 +26,14 @@ const declaration: FunctionDeclaration = {
 
 function AltairComponent() {
   const [jsonString, setJSONString] = useState<string>("");
-  const { client, setConfig } = useLiveAPIContext();
+  const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
+    setModel("models/gemini-2.0-flash-exp");
+
     setConfig({
-      model: "models/gemini-2.0-flash-exp",
       generationConfig: {
-        responseModalities: "audio",
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
         },
@@ -49,9 +54,9 @@ function AltairComponent() {
   }, [setConfig]);
 
   useEffect(() => {
-    const onToolCall = (toolCall: ToolCall) => {
+    const onToolCall = (toolCall: LiveServerToolCall) => {
       console.log(`got toolcall`, toolCall);
-      const fc = toolCall.functionCalls.find(
+      const fc = toolCall.functionCalls?.find(
         (fc) => fc.name === declaration.name
       );
       if (fc) {
@@ -60,11 +65,11 @@ function AltairComponent() {
       }
       // send data for the response of your tool call
       // in this case Im just saying it was successful
-      if (toolCall.functionCalls.length) {
+      if (toolCall.functionCalls?.length) {
         setTimeout(
           () =>
             client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map((fc) => ({
+              functionResponses: toolCall.functionCalls?.map((fc) => ({
                 response: { output: { sucess: true } },
                 id: fc.id,
               })),

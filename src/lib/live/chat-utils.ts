@@ -16,7 +16,7 @@ export const audioContext: (
     try {
       const a = new Audio();
       a.src =
-        "data:aud@/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
       await a.play();
       if (options?.id && map.has(options.id)) {
         const ctx = map.get(options.id);
@@ -45,20 +45,6 @@ export const audioContext: (
     }
   };
 })();
-
-export const blobToJSON = (blob: Blob) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result) {
-        const json = JSON.parse(reader.result as string);
-        resolve(json);
-      } else {
-        reject("oops");
-      }
-    };
-    reader.readAsText(blob);
-  });
 
 export function base64ToArrayBuffer(base64: string) {
   var binaryString = atob(base64);

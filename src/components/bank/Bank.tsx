@@ -1,8 +1,23 @@
-import { useEffect, useRef, useState, memo } from "react";
-import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
-import { ToolCall } from "@/lib/live/multimodal-live-types";
+"use client";
 import vegaEmbed from "vega-embed";
+import { useEffect, useRef, useState, memo } from "react";
+import { LiveServerToolCall, mcpToTool, Modality } from "@google/genai";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { declaration, functionsmap } from "@/lib/toolcall/declarations";
+
+// Create server parameters for stdio connection
+// const serverParams = new StdioClientTransport({
+//   command: "npx", // Executable
+//   args: ["-y", "@philschmid/weather-mcp"], // MCP Server
+// });
+
+// const mcpclient = new Client({
+//   name: "example-client",
+//   version: "1.0.0",
+// });
 
 function BankDetailsComponent() {
   const [tool, setTool] = useState<string | null>(null);
@@ -12,13 +27,14 @@ function BankDetailsComponent() {
   const [trigger, setTrigger] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
-  const { client, setConfig } = useLiveAPIContext();
+  const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
+    setModel("models/gemini-2.0-flash-exp");
+    // mcpclient.connect(serverParams);
     setConfig({
-      model: "models/gemini-2.0-flash-exp",
       generationConfig: {
-        responseModalities: "audio",
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
         },
@@ -28,7 +44,7 @@ function BankDetailsComponent() {
           {
             text: `
             **You are my document analysis agent.**  
-
+            
             - I will share my screen with you. If you cannot view my screen, let me know by saying, **"Please turn on the screen."**  
             - Remember and store all documents and text visible on my screen.  
             - Only respond when I ask a question—do not comment on every page interaction.  
@@ -43,6 +59,7 @@ function BankDetailsComponent() {
       },
       tools: [
         // there is a free-tier quota for search and code execution
+        // mcpToTool(mcpclient),
         { googleSearch: {} },
         { functionDeclarations: declaration },
       ],
@@ -50,13 +67,13 @@ function BankDetailsComponent() {
   }, [setConfig]);
 
   useEffect(() => {
-    const onToolCall = async (toolCall: ToolCall) => {
+    const onToolCall = async (toolCall: LiveServerToolCall) => {
       console.log(`got toolcall`, toolCall);
       let response: any;
-      const fc = toolCall.functionCalls.find((fc) =>
+      const fc = toolCall.functionCalls?.find((fc) =>
         declaration.some((decl) => decl.name === fc.name)
       );
-      if (fc) {
+      if (fc && fc.name) {
         setTool(fc.name);
         try {
           setIsLoading(true);
@@ -70,11 +87,11 @@ function BankDetailsComponent() {
         }
       }
 
-      if (toolCall.functionCalls.length) {
+      if (toolCall.functionCalls?.length) {
         setTimeout(
           () =>
             client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map((fc) => ({
+              functionResponses: toolCall.functionCalls?.map((fc) => ({
                 id: fc.id,
                 name: fc.name,
                 response: { output: response },
