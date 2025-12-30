@@ -13,9 +13,13 @@ import {
   addComplaint,
   fetchIssuedLoanSchemes,
   p2ptransfer,
+  executeTask,
 } from "@/lib/toolcall/functions";
 
 export const functionsmap: Record<string, any> = {
+  useChrome: (args: { input: string }) => {
+    return executeTask(args.input);
+  },
   render_altair: (args: { json_graph: string }) => {
     return args.json_graph;
   },
@@ -95,6 +99,21 @@ export const functionsmap: Record<string, any> = {
 };
 
 export const declaration: FunctionDeclaration[] = [
+  {
+    name: "useChrome",
+    description:
+      "This tool is used for executing a task in the user's browser. Provide input which will contain task to be executed on user's browser",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        input: {
+          type: Type.STRING,
+          description: "The task to be executed in the user's browser",
+        },
+      },
+      required: ["input"],
+    },
+  },  
   {
     name: "fetchuserdata",
     description:

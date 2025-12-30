@@ -35,7 +35,7 @@ await client.connect(serverParams);
 // Send request to the model with MCP tools
 const response = await ai.models.generateContent({
   model: "gemini-2.5-flash",
-  contents: `open new chrome tab and go to youtube.com and search for mr beast`,
+  contents: `open new chrome tab and go to amazon.in and give me top 5 smart watches below 2000`,
   config: {
     tools: [mcpToTool(client)], // uses the session, will automatically call the tool
     // Uncomment if you **don't** want the sdk to automatically call the tool
