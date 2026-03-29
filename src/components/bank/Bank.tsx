@@ -1,7 +1,7 @@
 "use client";
 import vegaEmbed from "vega-embed";
 import { useEffect, useRef, useState, memo } from "react";
-import { LiveServerToolCall, mcpToTool, Modality } from "@google/genai";
+import { LiveServerToolCall, Modality } from "@google/genai";
 
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { declaration, functionsmap } from "@/lib/toolcall/declarations";
@@ -28,14 +28,12 @@ function BankDetailsComponent() {
   const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
-    setModel("models/gemini-2.5-flash-native-audio-preview-12-2025");
+    setModel("models/gemini-3.1-flash-live-preview");
     // mcpclient.connect(serverParams);
     setConfig({
-      generationConfig: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-        },
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
       },
       systemInstruction: {
         parts: [
@@ -56,8 +54,7 @@ function BankDetailsComponent() {
         ],
       },
       tools: [
-        // there is a free-tier quota for search and code execution
-        { googleSearch: {} },
+        // { googleSearch: {} },
         { functionDeclarations: declaration },
       ],
     });

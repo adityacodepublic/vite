@@ -93,6 +93,15 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       type,
       message,
     };
+    if (
+      type === "client.open" ||
+      type === "client.close" ||
+      type === "server.close" ||
+      type === "server.error" ||
+      type === "server.goAway"
+    ) {
+      console.log(`[LiveAPI] ${type}`, message);
+    }
     this.emit("log", log);
   }
 
@@ -101,9 +110,11 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       return false;
     }
 
+    const normalizedModel = model.replace(/^models\//, "");
+
     this._status = "connecting";
     this.config = config;
-    this._model = model;
+    this._model = normalizedModel;
 
     const callbacks: LiveCallbacks = {
       onopen: this.onopen,
@@ -114,7 +125,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
     try {
       this._session = await this.client.live.connect({
-        model,
+        model: normalizedModel,
         config,
         callbacks,
       });
@@ -151,9 +162,11 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   }
 
   protected onclose(e: CloseEvent) {
+    this._status = "disconnected";
+    this._session = null;
     this.log(
       `server.close`,
-      `disconnected ${e.reason ? `with reason: ${e.reason}` : ``}`
+      `disconnected (code: ${e.code}, clean: ${e.wasClean})${e.reason ? ` with reason: ${e.reason}` : ""}`
     );
     this.emit("close", e);
   }
@@ -172,6 +185,11 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     if (message.toolCallCancellation) {
       this.log("server.toolCallCancellation", message);
       this.emit("toolcallcancellation", message.toolCallCancellation);
+      return;
+    }
+
+    if (message.goAway) {
+      this.log("server.goAway", message);
       return;
     }
 
@@ -231,11 +249,19 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     let hasAudio = false;
     let hasVideo = false;
     for (const ch of chunks) {
-      this.session?.sendRealtimeInput({ media: ch });
+      if (ch.mimeType.includes("audio")) {
+        this.session?.sendRealtimeInput({
+          audio: { data: ch.data, mimeType: ch.mimeType },
+        });
+      } else if (ch.mimeType.includes("image") || ch.mimeType.includes("video")) {
+        this.session?.sendRealtimeInput({
+          video: { data: ch.data, mimeType: ch.mimeType },
+        });
+      }
       if (ch.mimeType.includes("audio")) {
         hasAudio = true;
       }
-      if (ch.mimeType.includes("image")) {
+      if (ch.mimeType.includes("image") || ch.mimeType.includes("video")) {
         hasVideo = true;
       }
       if (hasAudio && hasVideo) {
@@ -251,6 +277,16 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
         ? "video"
         : "unknown";
     this.log(`client.realtimeInput`, message);
+  }
+
+  sendRealtimeText(text: string) {
+    this.session?.sendRealtimeInput({ text });
+    this.log(`client.realtimeInput`, "text");
+  }
+
+  sendAudioStreamEnd() {
+    this.session?.sendRealtimeInput({ audioStreamEnd: true });
+    this.log(`client.realtimeInput`, "audioStreamEnd");
   }
 
   /**

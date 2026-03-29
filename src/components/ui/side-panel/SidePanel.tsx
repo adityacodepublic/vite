@@ -48,7 +48,7 @@ export default function SidePanel() {
   }, [client, log]);
 
   const handleSubmit = () => {
-    client.send([{ text: textInput }]);
+    client.sendRealtimeText(textInput);
 
     setTextInput("");
     if (inputRef.current) {

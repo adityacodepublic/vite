@@ -99,7 +99,7 @@ function ControlTray({
     useLiveAPIContext();
   const isLoading = false;
   const handleSubmit = () => {
-    client.send([{ text: textInput }]);
+    client.sendRealtimeText(textInput);
 
     setTextInput("");
   };
@@ -148,6 +148,9 @@ function ControlTray({
     if (connected && !muted && audioRecorder) {
       audioRecorder.on("data", onData).on("volume", setInVolume).start();
     } else {
+      if (connected) {
+        client.sendAudioStreamEnd();
+      }
       audioRecorder.stop();
     }
     return () => {

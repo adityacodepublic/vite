@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.21.0",
-    "@modelcontextprotocol/sdk": "^1.19.1",
+    "@google/genai": "^1.47.0",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "@radix-ui/react-slot": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.8",
     "@tailwindcss/vite": "^4.0.17",

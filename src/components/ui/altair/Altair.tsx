@@ -29,14 +29,12 @@ function AltairComponent() {
   const { client, setConfig, setModel } = useLiveAPIContext();
 
   useEffect(() => {
-    setModel("models/gemini-2.5-flash-native-audio-preview-12-2025");
+    setModel("models/gemini-3.1-flash-live-preview");
 
     setConfig({
-      generationConfig: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-        },
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
       },
       systemInstruction: {
         parts: [
@@ -46,8 +44,7 @@ function AltairComponent() {
         ],
       },
       tools: [
-        // there is a free-tier quota for search
-        { googleSearch: {} },
+        // { googleSearch: {} },
         { functionDeclarations: [declaration] },
       ],
     });
