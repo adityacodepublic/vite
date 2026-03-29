@@ -2,8 +2,6 @@
 import vegaEmbed from "vega-embed";
 import { useEffect, useRef, useState, memo } from "react";
 import { LiveServerToolCall, mcpToTool, Modality } from "@google/genai";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { declaration, functionsmap } from "@/lib/toolcall/declarations";
@@ -59,7 +57,6 @@ function BankDetailsComponent() {
       },
       tools: [
         // there is a free-tier quota for search and code execution
-        // mcpToTool(mcpclient),
         { googleSearch: {} },
         { functionDeclarations: declaration },
       ],
@@ -71,7 +68,7 @@ function BankDetailsComponent() {
       console.log(`got toolcall`, toolCall);
       let response: any;
       const fc = toolCall.functionCalls?.find((fc) =>
-        declaration.some((decl) => decl.name === fc.name)
+        declaration.some((decl) => decl.name === fc.name),
       );
       if (fc && fc.name) {
         setTool(fc.name);
@@ -97,7 +94,7 @@ function BankDetailsComponent() {
                 response: { output: response },
               })),
             }),
-          100
+          100,
         );
       }
     };

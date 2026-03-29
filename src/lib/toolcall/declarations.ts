@@ -13,12 +13,24 @@ import {
   addComplaint,
   fetchIssuedLoanSchemes,
   p2ptransfer,
-  executeTask,
+  startSession,
+  listSessions,
+  getSessionUpdates,
 } from "@/lib/toolcall/functions";
 
 export const functionsmap: Record<string, any> = {
-  useChrome: (args: { input: string }) => {
-    return executeTask(args.input);
+  startSession: (args: {
+    prompt: string;
+    sessionId?: string;
+    model?: string;
+  }) => {
+    return startSession(args.prompt, args.sessionId, args.model);
+  },
+  listSessions: () => {
+    return listSessions();
+  },
+  getSessionUpdates: (args: { sessionId: string }) => {
+    return getSessionUpdates(args.sessionId);
   },
   render_altair: (args: { json_graph: string }) => {
     return args.json_graph;
@@ -44,8 +56,8 @@ export const functionsmap: Record<string, any> = {
   getLoanByBankBalance: (args: { balance: number }) => {
     return fetchAvailableLoanSchemes(args.balance);
   },
-  getLoanByType: (args: { balance: number; loantype: string }) => {
-    return fetchAvailableLoanType(args.balance, args.loantype);
+  getLoanByType: (args: { balance: number; type: string }) => {
+    return fetchAvailableLoanType(args.balance, args.type);
   },
   issueTransaction: (args: {
     userid: number;
@@ -57,7 +69,7 @@ export const functionsmap: Record<string, any> = {
       args.userid,
       args.amount,
       args.type,
-      args.description
+      args.description,
     );
   },
   transferToPerson: (args: {
@@ -70,7 +82,7 @@ export const functionsmap: Record<string, any> = {
       args.userid,
       args.recieverid,
       args.amount,
-      args.description
+      args.description,
     );
   },
   issuedScheme: (args: {
@@ -87,7 +99,7 @@ export const functionsmap: Record<string, any> = {
       args.type,
       args.amount,
       args.category,
-      args.tenure
+      args.tenure,
     );
   },
   createComplaint: (args: { userid: number; complainttext: string }) => {
@@ -100,20 +112,57 @@ export const functionsmap: Record<string, any> = {
 
 export const declaration: FunctionDeclaration[] = [
   {
-    name: "useChrome",
+    name: "startSession",
     description:
-      "This tool is used for executing a task in the user's browser. Provide input which will contain task to be executed on user's browser",
+      "Handover Browser and files related tasks and complex tasks to the core agent. Use this when a new user goal arrives and you dnt have tools to do it or when you need the core agent to continue an existing work thread ( find existing sessions with listSessions ). Provide a clear, self-contained prompt describing the task to execute. If continuing prior work, include sessionId. Optionally set model when routing requires a specific model. github-copilot/gemini-3-flash-preview, github-copilot/gpt-5.3-codex, github-copilot/claude-sonnet-4.5 in most cases no need to set model, the core agent will route to the best model.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        input: {
+        prompt: {
           type: Type.STRING,
-          description: "The task to be executed in the user's browser",
+          description:
+            "Instruction payload for the core agent. Include task intent, constraints, expected output, and any relevant context.",
+        },
+        sessionId: {
+          type: Type.STRING,
+          description:
+            "Existing session ID to continue the same core-agent workflow instead of creating a new session.",
+        },
+        model: {
+          type: Type.STRING,
+          description:
+            "Optional model name for routing (for example, when quality/speed/cost requirements require a specific model).",
         },
       },
-      required: ["input"],
+      required: ["prompt"],
     },
-  },  
+  },
+  {
+    name: "listSessions",
+    description:
+      "List known core-agent sessions. Use this to discover available session IDs before resuming work or to inspect whether a prior task is still running or already finished.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "getSessionUpdates",
+    description:
+      "Fetch latest progress/content from a specific core-agent session. Use this after startSession or when polling a running task to get incremental updates and final output.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        sessionId: {
+          type: Type.STRING,
+          description:
+            "Target session ID whose latest state and content should be retrieved.",
+        },
+      },
+      required: ["sessionId"],
+    },
+  },
   {
     name: "fetchuserdata",
     description:

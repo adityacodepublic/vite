@@ -92,6 +92,7 @@ function ControlTray({
   const [inVolume, setInVolume] = useState(0);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const [muted, setMuted] = useState(false);
+  const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const { client, connected, connect, disconnect, volume } =
@@ -114,6 +115,26 @@ function ControlTray({
       `${Math.max(5, Math.min(inVolume * 200, 8))}px`
     );
   }, [inVolume]);
+
+  useEffect(() => {
+    const onOpen = () => setConnectionIssue(null);
+    const onClose = (e: CloseEvent) => {
+      const reason = e.reason ? `, reason: ${e.reason}` : "";
+      const msg = `Live connection closed (code: ${e.code}, clean: ${e.wasClean}${reason})`;
+      setConnectionIssue(msg);
+      console.error(`[LiveAPI] ${msg}`);
+    };
+    const onError = (e: ErrorEvent) => {
+      const msg = `Live socket error${e.message ? `: ${e.message}` : ""}`;
+      setConnectionIssue(msg);
+      console.error(`[LiveAPI] ${msg}`, e);
+    };
+
+    client.on("open", onOpen).on("close", onClose).on("error", onError);
+    return () => {
+      client.off("open", onOpen).off("close", onClose).off("error", onError);
+    };
+  }, [client]);
 
   useEffect(() => {
     const onData = (base64: string) => {
@@ -331,6 +352,11 @@ function ControlTray({
           </PromptInputAction>
         </PromptInputActions>
       </PromptInput>
+      {connectionIssue && (
+        <div className="w-full max-w-(--breakpoint-md) px-3 text-[11px] text-red-500">
+          {connectionIssue}
+        </div>
+      )}
     </section>
   );
 }

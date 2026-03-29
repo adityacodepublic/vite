@@ -2,19 +2,97 @@ import axios from "axios";
 
 const SUPABASE_URL = import.meta.env.VITE_HOST_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const SESSION_API_BASE =
+  (import.meta.env.VITE_SESSION_API_BASE as string | undefined) ??
+  "http://localhost:3457";
+
+type StartSessionRequest = {
+  sessionId?: string;
+  prompt: string;
+  model?: string;
+};
+
+type StartSessionResponse =
+  | {
+      success: true;
+      sessionId: string;
+      title: string;
+      status: "running";
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+type ListSessionsResponse = {
+  sessions: Array<{
+    id: string;
+    title: string;
+    status: "running" | "finished";
+  }>;
+};
+
+type GetUpdatesResponse =
+  | {
+      success: true;
+      sessionId: string;
+      title: string;
+      status: "running" | "finished";
+      latestContent: string;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+export async function startSession(
+  prompt: string,
+  sessionId?: string,
+  model: string = "github-copilot/gpt-5.3-codex",
+): Promise<StartSessionResponse> {
+  const body: StartSessionRequest = { prompt };
+  if (sessionId) body.sessionId = sessionId;
+  body.model = model;
+
+  const response = await fetch(`${SESSION_API_BASE}/session/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  return response.json();
+}
+
+export async function listSessions(): Promise<ListSessionsResponse> {
+  const response = await fetch(`${SESSION_API_BASE}/sessions`);
+  return response.json();
+}
+
+export async function getSessionUpdates(
+  sessionId: string,
+): Promise<GetUpdatesResponse> {
+  const response = await fetch(
+    `${SESSION_API_BASE}/session/${sessionId}/updates`,
+  );
+  return response.json();
+}
 // if (typeof SUPABASE_URL !== "string" || typeof SUPABASE_ANON_KEY !== "string") {
 //   throw new Error("set SUPABASE_API_KEY in .env");
 // }
 
 export async function executeTask(input: string): Promise<void> {
   try {
-    const response = await axios.post("http://localhost:3000/execute", {
-      input
-    }, {
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
+    const response = await axios.post(
+      "http://localhost:3000/execute",
+      {
+        input,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
 
     console.log("✅ Response:", response.data);
   } catch (error) {
@@ -35,14 +113,14 @@ export const fetchdebit = async (userid: number) => {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
       const totalSpent = response.data.reduce(
         (total: number, transaction: { amount: number }) =>
           total + transaction.amount,
-        0
+        0,
       );
       return { totalSpent: totalSpent, spending: response.data }; // Return total spending for last month
     } else {
@@ -63,14 +141,14 @@ export const fetchcredit = async (userid: number) => {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
       const totalCredited = response.data.reduce(
         (total: number, transaction: { amount: number }) =>
           total + transaction.amount,
-        0
+        0,
       );
       return { totalCredited: totalCredited, recievedCredit: response.data }; // Return total spending for last month
     } else {
@@ -91,7 +169,7 @@ export const fetchBankdetails = async (userid: number) => {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
@@ -114,7 +192,7 @@ export const getLastTransaction = async (userid: number) => {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200 && response.data.length > 0) {
@@ -137,7 +215,7 @@ export const fetchUserBalance = async (userid: number) => {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
@@ -167,7 +245,7 @@ export async function fetchAvailableSchemes(balance: number) {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200 && response.data.length > 0) {
@@ -194,7 +272,7 @@ export const fetchAvailableLoanSchemes = async (userBalance: number) => {
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
@@ -210,7 +288,7 @@ export const fetchAvailableLoanSchemes = async (userBalance: number) => {
 
 export const fetchAvailableLoanType = async (
   userBalance: number,
-  loanType: string
+  loanType: string,
 ) => {
   try {
     if (userBalance <= 0) {
@@ -224,7 +302,7 @@ export const fetchAvailableLoanType = async (
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
@@ -248,7 +326,7 @@ interface AccountResponse {
 async function performtransaction(
   userid: number,
   amount: number,
-  type: "credit" | "debit"
+  type: "credit" | "debit",
 ): Promise<
   | {
       error: string;
@@ -264,7 +342,7 @@ async function performtransaction(
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
     if ([200, 201, 202].includes(response.status)) {
       if (!response.data || response.data.length === 0) {
@@ -293,7 +371,7 @@ async function performtransaction(
             "Content-Type": "application/json",
             "Content-Profile": "public",
           },
-        }
+        },
       );
 
       if (updateResponse.status === 204) {
@@ -315,7 +393,7 @@ export async function addTransaction(
   userid: number,
   amount: number,
   type: "credit" | "debit",
-  description?: string
+  description?: string,
 ): Promise<
   | {
       error: string;
@@ -345,7 +423,7 @@ export async function addTransaction(
           apikey: SUPABASE_ANON_KEY,
           "Content-Profile": "public",
         },
-      }
+      },
     );
     if (response.status !== 201) {
       return { error: "Error adding transaction" };
@@ -361,14 +439,14 @@ export async function p2ptransfer(
   sender: number,
   receiver: number,
   amount: number,
-  description: string
+  description: string,
 ) {
   console.log("p2p", sender, receiver);
   const debitResponse = await addTransaction(
     sender,
     amount,
     "debit",
-    description
+    description,
   );
   if ("error" in debitResponse) {
     return debitResponse;
@@ -378,7 +456,7 @@ export async function p2ptransfer(
     receiver,
     amount,
     "credit",
-    description
+    description,
   );
   if ("error" in creditResponse) {
     return creditResponse;
@@ -393,7 +471,7 @@ export async function issuefianancial(
   type: string,
   amount: number,
   category: string,
-  tenure: string
+  tenure: string,
 ) {
   try {
     const response = await axios.post(
@@ -411,7 +489,7 @@ export async function issuefianancial(
           apikey: SUPABASE_ANON_KEY,
           "Content-Profile": "public",
         },
-      }
+      },
     );
     return response.status;
   } catch (error) {
@@ -430,7 +508,7 @@ export const fetchIssuedLoanSchemes = async (userId: number): Promise<any> => {
           apikey: SUPABASE_ANON_KEY,
           "Content-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 200) {
@@ -446,7 +524,7 @@ export const fetchIssuedLoanSchemes = async (userId: number): Promise<any> => {
 
 export const addComplaint = async (
   userId: number,
-  complaintText: string
+  complaintText: string,
 ): Promise<any> => {
   try {
     const complaintData = {
@@ -462,7 +540,7 @@ export const addComplaint = async (
           apikey: SUPABASE_ANON_KEY,
           "Accept-Profile": "public",
         },
-      }
+      },
     );
 
     if (response.status === 201) {
