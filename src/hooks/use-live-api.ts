@@ -4,7 +4,7 @@ import { LiveClientOptions } from "@/lib/live/types";
 import { AudioStreamer } from "@/lib/live/audio-streamer";
 import { audioContext } from "@/lib/live/chat-utils";
 import VolMeterWorket from "../lib/worklets/vol-meter";
-import { LiveConnectConfig } from "@google/genai";
+import { LiveConnectConfig, LiveServerSessionResumptionUpdate } from "@google/genai";
 
 export type UseLiveAPIResults = {
   client: GenAILiveClient;
@@ -15,19 +15,37 @@ export type UseLiveAPIResults = {
   connected: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+  resumeSession: () => Promise<void>;
+  canResume: boolean;
   volume: number;
 };
 
 export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   const client = useMemo(() => new GenAILiveClient(options), [options]);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
+  const resumeHandleRef = useRef<string | null>(null);
+  const resumableRef = useRef(false);
+  const lastOutputVolumeRef = useRef(0);
+  const lastOutputVolumeUIUpdateRef = useRef(0);
 
   const [model, setModel] = useState<string>(
     "models/gemini-3.1-flash-live-preview",
   );
   const [config, setConfig] = useState<LiveConnectConfig>({});
   const [connected, setConnected] = useState(false);
+  const [canResume, setCanResume] = useState(false);
   const [volume, setVolume] = useState(0);
+
+  const buildConnectConfig = useCallback(
+    (resumeHandle?: string | null): LiveConnectConfig => ({
+      ...config,
+      sessionResumption: {
+        ...(config.sessionResumption ?? {}),
+        ...(resumeHandle ? { handle: resumeHandle } : {}),
+      },
+    }),
+    [config],
+  );
 
   // register audio for streaming server -> speakers
   useEffect(() => {
@@ -36,7 +54,17 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
         audioStreamerRef.current = new AudioStreamer(audioCtx);
         audioStreamerRef.current
           .addWorklet<any>("vumeter-out", VolMeterWorket, (ev: any) => {
-            setVolume(ev.data.volume);
+            const nextVolume = Number(ev.data.volume ?? 0);
+            const now = performance.now();
+            const shouldUpdateUI =
+              now - lastOutputVolumeUIUpdateRef.current >= 100 ||
+              Math.abs(nextVolume - lastOutputVolumeRef.current) >= 0.02;
+
+            if (shouldUpdateUI) {
+              lastOutputVolumeRef.current = nextVolume;
+              lastOutputVolumeUIUpdateRef.current = now;
+              setVolume(nextVolume);
+            }
           })
           .then(() => {
             // Successfully added worklet
@@ -59,6 +87,14 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
     };
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();
+    const onSessionResumptionUpdate = (
+      update: LiveServerSessionResumptionUpdate,
+    ) => {
+      resumeHandleRef.current = update.newHandle ?? null;
+      resumableRef.current = Boolean(update.resumable);
+      const nextCanResume = Boolean(update.resumable && update.newHandle);
+      setCanResume((prev) => (prev === nextCanResume ? prev : nextCanResume));
+    };
 
     const onAudio = (data: ArrayBuffer) =>
       audioStreamerRef.current?.addPCM16(new Uint8Array(data));
@@ -68,6 +104,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       .on("open", onOpen)
       .on("close", onClose)
       .on("interrupted", stopAudioStreamer)
+      .on("sessionresumptionupdate", onSessionResumptionUpdate)
       .on("audio", onAudio);
 
     return () => {
@@ -76,6 +113,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
         .off("open", onOpen)
         .off("close", onClose)
         .off("interrupted", stopAudioStreamer)
+        .off("sessionresumptionupdate", onSessionResumptionUpdate)
         .off("audio", onAudio)
         .disconnect();
     };
@@ -86,23 +124,58 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       throw new Error("config has not been set");
     }
     client.disconnect();
-    await client.connect(model, config);
-  }, [client, config, model]);
+    await client.connect(model, buildConnectConfig());
+  }, [client, config, model, buildConnectConfig]);
 
   const disconnect = useCallback(async () => {
     client.disconnect();
     setConnected(false);
   }, [setConnected, client]);
 
-  return {
-    client,
-    config,
-    setConfig,
-    model,
-    setModel,
-    connected,
-    connect,
-    disconnect,
-    volume,
-  };
+  const resumeSession = useCallback(async () => {
+    if (!resumableRef.current || !resumeHandleRef.current) {
+      return;
+    }
+
+    client.disconnect();
+    const connected = await client.connect(
+      model,
+      buildConnectConfig(resumeHandleRef.current),
+    );
+
+    if (!connected) {
+      resumeHandleRef.current = null;
+      resumableRef.current = false;
+      setCanResume(false);
+    }
+  }, [client, model, buildConnectConfig]);
+
+  return useMemo(
+    () => ({
+      client,
+      config,
+      setConfig,
+      model,
+      setModel,
+      connected,
+      connect,
+      disconnect,
+      resumeSession,
+      canResume,
+      volume,
+    }),
+    [
+      client,
+      config,
+      setConfig,
+      model,
+      setModel,
+      connected,
+      connect,
+      disconnect,
+      resumeSession,
+      canResume,
+      volume,
+    ],
+  );
 }

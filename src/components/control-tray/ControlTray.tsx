@@ -7,7 +7,7 @@ import { useScreenCapture } from "@/hooks/use-screen-capture";
 import { useWebcam } from "@/hooks/use-webcam";
 import {
   ArrowUp,
-  Ellipsis,
+  Undo2,
   Mic,
   MicOff,
   MonitorOff,
@@ -75,7 +75,7 @@ const MediaStreamButton = memo(
       >
         {offIcon}
       </Button>
-    )
+    ),
 );
 
 function ControlTray({
@@ -89,14 +89,22 @@ function ControlTray({
     useState<MediaStream | null>(null);
   const [textInput, setTextInput] = useState("");
   const [webcam, screenCapture] = videoStreams;
-  const [inVolume, setInVolume] = useState(0);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const [muted, setMuted] = useState(false);
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
-  const { client, connected, connect, disconnect, volume } =
-    useLiveAPIContext();
+  const lastInputVolumeRef = useRef(0);
+  const lastInputVolumeUIUpdateRef = useRef(0);
+  const {
+    client,
+    connected,
+    connect,
+    disconnect,
+    resumeSession,
+    canResume,
+    volume,
+  } = useLiveAPIContext();
   const isLoading = false;
   const handleSubmit = () => {
     client.sendRealtimeText(textInput);
@@ -109,13 +117,6 @@ function ControlTray({
   //     connectButtonRef.current.focus();
   //   }
   // }, [connected]);
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--volume",
-      `${Math.max(5, Math.min(inVolume * 200, 8))}px`
-    );
-  }, [inVolume]);
-
   useEffect(() => {
     const onOpen = () => setConnectionIssue(null);
     const onClose = (e: CloseEvent) => {
@@ -145,8 +146,26 @@ function ControlTray({
         },
       ]);
     };
+
+    const onInputVolume = (value: number) => {
+      const nextVolume = Number(value ?? 0);
+      const now = performance.now();
+      const shouldUpdateUI =
+        now - lastInputVolumeUIUpdateRef.current >= 100 ||
+        Math.abs(nextVolume - lastInputVolumeRef.current) >= 0.02;
+
+      if (shouldUpdateUI) {
+        lastInputVolumeRef.current = nextVolume;
+        lastInputVolumeUIUpdateRef.current = now;
+        document.documentElement.style.setProperty(
+          "--volume",
+          `${Math.max(5, Math.min(nextVolume * 200, 8))}px`,
+        );
+      }
+    };
+
     if (connected && !muted && audioRecorder) {
-      audioRecorder.on("data", onData).on("volume", setInVolume).start();
+      audioRecorder.on("data", onData).on("volume", onInputVolume).start();
     } else {
       if (connected) {
         client.sendAudioStreamEnd();
@@ -154,7 +173,7 @@ function ControlTray({
       audioRecorder.stop();
     }
     return () => {
-      audioRecorder.off("data", onData).off("volume", setInVolume);
+      audioRecorder.off("data", onData).off("volume", onInputVolume);
     };
   }, [connected, client, muted, audioRecorder]);
 
@@ -252,7 +271,7 @@ function ControlTray({
               <div
                 className={cn(
                   "flex [&_svg]:shrink-0 items-center justify-center border rounded-full border-input ",
-                  { disabled: !connected }
+                  { disabled: !connected },
                 )}
               >
                 <button
@@ -315,27 +334,30 @@ function ControlTray({
                 )}
               </div>
             </PromptInputAction>
-            <PromptInputAction
-              delayDuration={0}
-              className="duration-0 data-[state=closed]:duration-0"
-              tooltip={
-                <div className="bg-black">
-                  <Arrow className="fill-black" />
-                  <span className="text-xs leading-none font-semibold text-white">
-                    View tools
-                  </span>
-                </div>
-              }
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="View tools"
-                className="border-input bg-background text-secondary-foreground hover:bg-secondary h-9 w-9 rounded-full border p-1 text-xs font-semibold focus-visible:outline-black [&_svg]:size-[18px]"
+            {!connected && canResume && (
+              <PromptInputAction
+                delayDuration={0}
+                className="duration-0 data-[state=closed]:duration-0"
+                tooltip={
+                  <div className="bg-black">
+                    <Arrow className="fill-black" />
+                    <span className="text-xs leading-none font-semibold text-white">
+                      Resume session
+                    </span>
+                  </div>
+                }
               >
-                <Ellipsis className="size-6" />
-              </Button>
-            </PromptInputAction>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Resume session"
+                  onClick={resumeSession}
+                  className="border-input bg-background text-secondary-foreground hover:bg-secondary h-9 w-9 rounded-full border p-1 text-xs font-semibold focus-visible:outline-black [&_svg]:size-[18px]"
+                >
+                  <Undo2 className="size-6" />
+                </Button>
+              </PromptInputAction>
+            )}
           </div>
           <PromptInputAction
             tooltip={isLoading ? "Stop generation" : "Send message"}

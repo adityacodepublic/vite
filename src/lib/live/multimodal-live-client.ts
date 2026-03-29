@@ -6,6 +6,7 @@ import {
   LiveConnectConfig,
   LiveServerContent,
   LiveServerMessage,
+  LiveServerSessionResumptionUpdate,
   LiveServerToolCall,
   LiveServerToolCallCancellation,
   Part,
@@ -42,10 +43,12 @@ export interface LiveClientEventTypes {
   toolcall: (toolCall: LiveServerToolCall) => void;
   // Emitted when a tool call is cancelled
   toolcallcancellation: (
-    toolcallCancellation: LiveServerToolCallCancellation
+    toolcallCancellation: LiveServerToolCallCancellation,
   ) => void;
   // Emitted when the current turn is complete
   turncomplete: () => void;
+  // Emitted when session resumption state is updated
+  sessionresumptionupdate: (update: LiveServerSessionResumptionUpdate) => void;
 }
 
 /**
@@ -166,41 +169,55 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this._session = null;
     this.log(
       `server.close`,
-      `disconnected (code: ${e.code}, clean: ${e.wasClean})${e.reason ? ` with reason: ${e.reason}` : ""}`
+      `disconnected (code: ${e.code}, clean: ${e.wasClean})${e.reason ? ` with reason: ${e.reason}` : ""}`,
     );
     this.emit("close", e);
   }
 
   protected async onmessage(message: LiveServerMessage) {
+    let handled = false;
+
     if (message.setupComplete) {
       this.log("server.send", "setupComplete");
       this.emit("setupcomplete");
-      return;
+      handled = true;
     }
+
     if (message.toolCall) {
       this.log("server.toolCall", message);
       this.emit("toolcall", message.toolCall);
-      return;
+      handled = true;
     }
+
     if (message.toolCallCancellation) {
       this.log("server.toolCallCancellation", message);
       this.emit("toolcallcancellation", message.toolCallCancellation);
-      return;
+      handled = true;
     }
 
     if (message.goAway) {
       this.log("server.goAway", message);
-      return;
+      handled = true;
+    }
+
+    if (message.sessionResumptionUpdate) {
+      this.log("server.sessionResumptionUpdate", "update");
+      this.emit("sessionresumptionupdate", message.sessionResumptionUpdate);
+      handled = true;
+    }
+
+    if (message.usageMetadata) {
+      handled = true;
     }
 
     // this json also might be `contentUpdate { interrupted: true }`
     // or contentUpdate { end_of_turn: true }
     if (message.serverContent) {
+      handled = true;
       const { serverContent } = message;
       if ("interrupted" in serverContent) {
         this.log("server.content", "interrupted");
         this.emit("interrupted");
-        return;
       }
       if ("turnComplete" in serverContent) {
         this.log("server.content", "turnComplete");
@@ -212,13 +229,12 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
         // when its audio that is returned for modelTurn
         const audioParts = parts.filter(
-          (p) => p.inlineData && p.inlineData.mimeType?.startsWith("audio/pcm")
+          (p) => p.inlineData && p.inlineData.mimeType?.startsWith("audio/pcm"),
         );
         const base64s = audioParts.map((p) => p.inlineData?.data);
 
         // strip the audio parts out of the modelTurn
         const otherParts = difference(parts, audioParts);
-        // console.log("otherParts", otherParts);
 
         base64s.forEach((b64) => {
           if (b64) {
@@ -227,18 +243,18 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
             this.log(`server.audio`, `buffer (${data.byteLength})`);
           }
         });
-        if (!otherParts.length) {
-          return;
+        if (otherParts.length) {
+          parts = otherParts;
+
+          const content: { modelTurn: Content } = { modelTurn: { parts } };
+          this.emit("content", content);
+          this.log(`server.content`, message);
         }
-
-        parts = otherParts;
-
-        const content: { modelTurn: Content } = { modelTurn: { parts } };
-        this.emit("content", content);
-        this.log(`server.content`, message);
       }
-    } else {
-      console.log("received unmatched message", message);
+    }
+
+    if (!handled) {
+      console.debug("[LiveAPI] received unmatched message", message);
     }
   }
 
@@ -253,7 +269,10 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
         this.session?.sendRealtimeInput({
           audio: { data: ch.data, mimeType: ch.mimeType },
         });
-      } else if (ch.mimeType.includes("image") || ch.mimeType.includes("video")) {
+      } else if (
+        ch.mimeType.includes("image") ||
+        ch.mimeType.includes("video")
+      ) {
         this.session?.sendRealtimeInput({
           video: { data: ch.data, mimeType: ch.mimeType },
         });
@@ -272,10 +291,10 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       hasAudio && hasVideo
         ? "audio + video"
         : hasAudio
-        ? "audio"
-        : hasVideo
-        ? "video"
-        : "unknown";
+          ? "audio"
+          : hasVideo
+            ? "video"
+            : "unknown";
     this.log(`client.realtimeInput`, message);
   }
 
