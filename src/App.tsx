@@ -1,9 +1,10 @@
 import cn from "classnames";
-import { useRef, useState } from "react";
-import { BankDetails } from "./components/bank/Bank";
+import { useEffect, useRef, useState } from "react";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
 import { LiveClientOptions } from "./lib/live/types";
+import { ChatScreen } from "./components/chat/ChatScreen";
+import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
 
 // import SidePanel from "./components/side-panel/SidePanel";
 //import { addTransaction, fetchUserBalance, p2ptransfer } from "./lib/toolcall/functions";
@@ -30,28 +31,62 @@ function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   // either the screen capture, the video or null, if null we hide it
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const horizontalPaneRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = horizontalPaneRef.current;
+    if (!container) {
+      return;
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.shiftKey || event.deltaY === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      container.scrollLeft += event.deltaY;
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      container.removeEventListener("wheel", onWheel);
+    };
+  }, []);
 
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
-        <div className=" bg-[#e0ecf46d] text-gray-300 flex justify-center h-screen w-full overflow-y-scroll">
+        <div className="relative h-screen w-full overflow-hidden bg-[#e0ecf46d] text-gray-300">
           {/* <SidePanel /> */}
-          <div>
-            <div className="flex items-center flex-col mt-2 pb-20">
-              {/* APP goes here */}
-              <BankDetails />
-              <video
-                className={cn(
-                  "flex-grow max-w-[90%] rounded-[32px] max-h-[fit-content] mt-2",
-                  {
-                    hidden: !videoRef.current || !videoStream,
-                  }
-                )}
-                ref={videoRef}
-                autoPlay
-                playsInline
-              />
+          <div
+            ref={horizontalPaneRef}
+            className="h-full overflow-x-auto overflow-y-hidden scroll-smooth"
+          >
+            <div className="flex h-full w-[200vw]">
+              <section className="h-full w-screen shrink-0 overflow-y-auto">
+                <div className="flex flex-col items-center pb-20">
+                  <ChatScreen />
+                  <video
+                    className={cn(
+                      "mt-2 max-h-[fit-content] max-w-[90%] flex-grow rounded-[32px]",
+                      {
+                        hidden: !videoRef.current || !videoStream,
+                      },
+                    )}
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                  />
+                </div>
+              </section>
+
+              <MarkdownBoardPanel />
             </div>
+          </div>
+
+          <div className="pointer-events-none fixed right-4 top-4 z-30 rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm">
+            Shift + Scroll to open board
           </div>
 
           <ControlTray

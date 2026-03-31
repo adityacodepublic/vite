@@ -28,6 +28,7 @@ import {
 import { Button } from "../ui/button";
 import { Arrow } from "@radix-ui/react-tooltip";
 import { Waveform } from "../ui/waveform";
+import { useChatStore } from "@/lib/chat/store";
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -105,9 +106,16 @@ function ControlTray({
     canResume,
     volume,
   } = useLiveAPIContext();
+  const addUserText = useChatStore((state) => state.addUserText);
   const isLoading = false;
   const handleSubmit = () => {
-    client.sendRealtimeText(textInput);
+    const trimmed = textInput.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    addUserText(trimmed);
+    client.sendRealtimeText(trimmed);
 
     setTextInput("");
   };
