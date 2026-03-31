@@ -80,29 +80,29 @@ export async function getSessionUpdates(
 //   throw new Error("set SUPABASE_API_KEY in .env");
 // }
 
-export async function executeTask(input: string): Promise<void> {
-  try {
-    const response = await axios.post(
-      "http://localhost:3000/execute",
-      {
-        input,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
+// export async function executeTask(input: string): Promise<void> {
+//   try {
+//     const response = await axios.post(
+//       "http://localhost:3000/execute",
+//       {
+//         input,
+//       },
+//       {
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//       },
+//     );
 
-    console.log("✅ Response:", response.data);
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error("❌ Axios error:", error.response?.data || error.message);
-    } else {
-      console.error("❌ Unexpected error:", error);
-    }
-  }
-}
+//     console.log("✅ Response:", response.data);
+//   } catch (error) {
+//     if (axios.isAxiosError(error)) {
+//       console.error("❌ Axios error:", error.response?.data || error.message);
+//     } else {
+//       console.error("❌ Unexpected error:", error);
+//     }
+//   }
+// }
 // Spending
 export const fetchdebit = async (userid: number) => {
   try {

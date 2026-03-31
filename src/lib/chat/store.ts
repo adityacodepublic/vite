@@ -32,6 +32,7 @@ export type JsonRenderChatMessage = BaseChatMessage & {
   spec: TreeSpec | null;
   valid: boolean;
   issues: string[];
+  warnings: string[];
 };
 
 export type ChatMessage =
@@ -71,6 +72,7 @@ type ChatState = {
     spec: TreeSpec | null,
     valid: boolean,
     issues?: string[],
+    warnings?: string[],
   ) => void;
   addSystemMessage: (text: string) => void;
   upsertMarkdownCards: (cards: MarkdownBoardCardInput[]) => void;
@@ -254,7 +256,7 @@ export const useChatStore = create<ChatState>((set) => ({
       ],
     }));
   },
-  addJsonRenderSpec: (spec, valid, issues = []) => {
+  addJsonRenderSpec: (spec, valid, issues = [], warnings = []) => {
     set((state) => ({
       messages: [
         ...state.messages,
@@ -266,6 +268,7 @@ export const useChatStore = create<ChatState>((set) => ({
           spec,
           valid,
           issues,
+          warnings,
         },
       ],
     }));

@@ -6,12 +6,14 @@ import {
 import { useEffect } from "react";
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { useChatStore } from "@/lib/chat/store";
-import { parseRenderSpec } from "@/lib/json-render/chat-renderer";
+import type { ParsedRenderSpec } from "@/lib/json-render/chat-renderer";
+import {
+  buildRenderChatUiInstruction,
+  ChatSpecRenderer,
+} from "@/lib/json-render/chat-runtime-renderer";
 import { declaration, functionsmap } from "@/lib/toolcall/declarations";
 import { AltairChart } from "./AltairChart";
 import { ChatRenderErrorBoundary } from "./ChatRenderErrorBoundary";
-import { MarkdownCards } from "./MarkdownCards";
-import { SafeSpecRenderer } from "./SafeSpecRenderer";
 
 const MODEL_NAME = "models/gemini-3.1-flash-live-preview";
 
@@ -26,38 +28,18 @@ function extractText(content: LiveServerContent): string {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-function extractInlineMarkdownCards(
-  spec: unknown,
-): { title?: string; cards: Array<{ id?: string; title: string; markdown: string }> } | null {
-  if (!isObject(spec) || !isObject(spec.root)) {
-    return null;
+const isRenderToolResult = (value: unknown): value is ParsedRenderSpec => {
+  if (!isObject(value)) {
+    return false;
   }
 
-  const root = spec.root;
-  if (root.type !== "MarkdownCards" || !isObject(root.props)) {
-    return null;
-  }
-
-  const cards = Array.isArray(root.props.cards)
-    ? root.props.cards
-        .filter(isObject)
-        .map((item) => ({
-          id: typeof item.id === "string" ? item.id : undefined,
-          title: typeof item.title === "string" ? item.title : "",
-          markdown: typeof item.markdown === "string" ? item.markdown : "",
-        }))
-        .filter((item) => item.title && item.markdown)
-    : [];
-
-  if (!cards.length) {
-    return null;
-  }
-
-  return {
-    title: typeof root.props.title === "string" ? root.props.title : undefined,
-    cards,
-  };
-}
+  return (
+    typeof value.valid === "boolean" &&
+    Array.isArray(value.issues) &&
+    Array.isArray(value.warnings) &&
+    isObject(value.summary)
+  );
+};
 
 export function ChatScreen() {
   const { client, setConfig, setModel } = useLiveAPIContext();
@@ -71,6 +53,8 @@ export function ChatScreen() {
     addSystemMessage,
     upsertMarkdownCards,
   } = useChatStore();
+
+  const renderChatUiInstruction = buildRenderChatUiInstruction();
 
   useEffect(() => {
     setModel(MODEL_NAME);
@@ -91,28 +75,14 @@ You are a voice-first document and financial assistant.
 - Use function tools for data retrieval and actions.
 - Use render_altair for Vega/Altair chart payloads only.
 
-render_chat_ui contract (strict):
-1) Always pass a JSON string in spec_json.
-2) Allowed component types only: Card, Stack, Heading, Text, Badge, Separator, Table, Alert, MarkdownCards.
-3) Do not include on/watch/actions/state mutations in specs.
-4) Keep specs compact: max ~20 elements and concise text.
-5) For markdown knowledge cards, use MarkdownCards with cards:[{id?,title,markdown}].
-
-Good render_chat_ui example (summary card):
-{"root":{"type":"Card","props":{"title":"Budget Summary"},"children":[{"type":"Stack","props":{"direction":"vertical","gap":2},"children":[{"type":"Text","props":{"text":"Spending is 12% lower than last month."}},{"type":"Badge","props":{"text":"Stable","variant":"secondary"}}]}]}}
-
-Good render_chat_ui example (markdown cards):
-{"root":{"type":"MarkdownCards","props":{"title":"Investment Notes","cards":[{"id":"sip-basics","title":"SIP Basics","markdown":"## SIP\nA SIP invests a fixed amount every month..."},{"title":"Risk Ladder","markdown":"### Conservative\n- Debt funds\n### Moderate\n- Hybrid funds"}]}}}
-
-Bad example (do not do):
-{"root":{"type":"Button","on":{"press":{"action":"setState"}}}}
+${renderChatUiInstruction}
 `,
           },
         ],
       },
       tools: [{ functionDeclarations: declaration }],
     });
-  }, [setConfig, setModel]);
+  }, [renderChatUiInstruction, setConfig, setModel]);
 
   useEffect(() => {
     const onContent = (content: LiveServerContent) => {
@@ -134,6 +104,12 @@ Bad example (do not do):
 
       const functionResponses = await Promise.all(
         calls.map(async (fc) => {
+          console.info("[toolcall] received", {
+            id: fc.id,
+            name: fc.name,
+            args: fc.args,
+          });
+
           const fn = fc.name ? functionsmap[fc.name] : undefined;
 
           if (!fc.name || typeof fn !== "function") {
@@ -149,31 +125,71 @@ Bad example (do not do):
 
             if (fc.name === "render_altair" && typeof output === "string") {
               addAltairSpec(output);
-            } else if (
-              fc.name === "render_chat_ui" &&
-              typeof output === "string"
-            ) {
-              console.info("[render_chat_ui] raw-output", {
-                chars: output.length,
-                preview: output.slice(0, 220),
-              });
-              const parsed = parseRenderSpec(output);
+            } else if (fc.name === "render_chat_ui") {
+              if (!isRenderToolResult(output)) {
+                console.error("[render_chat_ui] invalid-tool-output-shape", {
+                  id: fc.id,
+                  name: fc.name,
+                  output,
+                });
+                addToolResult(fc.name, {
+                  error: "render_chat_ui returned unexpected output shape.",
+                  output,
+                });
+                return {
+                  id: fc.id,
+                  name: fc.name,
+                  response: {
+                    output: {
+                      error:
+                        "render_chat_ui failed because tool output format is invalid.",
+                    },
+                  },
+                };
+              }
+
+              const parsed = output;
               console.info("[render_chat_ui] parsed", {
                 valid: parsed.valid,
                 issues: parsed.issues,
+                warnings: parsed.warnings,
                 summary: parsed.summary,
                 markdownCards: parsed.markdownCards.length,
               });
-              addJsonRenderSpec(parsed.spec as never, parsed.valid, parsed.issues);
+              addJsonRenderSpec(
+                parsed.spec,
+                parsed.valid,
+                parsed.issues,
+                parsed.warnings,
+              );
               if (parsed.markdownCards.length) {
                 upsertMarkdownCards(parsed.markdownCards);
               }
+              if (parsed.warnings.length) {
+                console.warn("[render_chat_ui] warnings", {
+                  id: fc.id,
+                  warnings: parsed.warnings,
+                });
+                addSystemMessage(
+                  `render_chat_ui warnings: ${parsed.warnings.join(" | ")}`,
+                );
+              }
               if (!parsed.valid) {
+                console.error("[render_chat_ui] validation-failed", {
+                  id: fc.id,
+                  issues: parsed.issues,
+                  summary: parsed.summary,
+                });
                 addSystemMessage(
                   "Received an invalid render spec. Showing fallback diagnostics.",
                 );
               }
             } else {
+              console.info("[toolcall] output", {
+                id: fc.id,
+                name: fc.name,
+                output,
+              });
               addToolResult(fc.name, output);
             }
 
@@ -185,6 +201,13 @@ Bad example (do not do):
           } catch (error) {
             const message =
               error instanceof Error ? error.message : "Tool call failed.";
+            console.error("[toolcall] execution-failed", {
+              id: fc.id,
+              name: fc.name,
+              args: fc.args,
+              error,
+              message,
+            });
             addToolResult(fc.name, { error: message });
             return {
               id: fc.id,
@@ -247,19 +270,13 @@ Bad example (do not do):
           }
 
           if (message.kind === "json-render") {
-            const inlineMarkdown = extractInlineMarkdownCards(message.spec);
             return (
               <article
                 key={message.id}
                 className="mr-auto max-w-[95%] overflow-hidden rounded-2xl rounded-bl-sm bg-white p-4 shadow-sm"
               >
                 {message.valid ? (
-                  inlineMarkdown ? (
-                    <MarkdownCards
-                      title={inlineMarkdown.title}
-                      cards={inlineMarkdown.cards}
-                    />
-                  ) : !message.spec ? (
+                  !message.spec ? (
                     <div className="space-y-2 text-xs text-amber-700">
                       <p>Spec marked valid but payload is empty.</p>
                     </div>
@@ -276,7 +293,7 @@ Bad example (do not do):
                         </div>
                       }
                     >
-                      <SafeSpecRenderer spec={message.spec} />
+                      <ChatSpecRenderer spec={message.spec} />
                     </ChatRenderErrorBoundary>
                   )
                 ) : (
@@ -287,6 +304,13 @@ Bad example (do not do):
                     ))}
                   </div>
                 )}
+                {message.warnings.length ? (
+                  <div className="mt-3 space-y-1 text-[11px] text-amber-700">
+                    {message.warnings.map((warning) => (
+                      <p key={`${message.id}-warning-${warning}`}>! {warning}</p>
+                    ))}
+                  </div>
+                ) : null}
               </article>
             );
           }

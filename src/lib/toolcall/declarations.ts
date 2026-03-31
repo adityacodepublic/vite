@@ -17,6 +17,10 @@ import {
   listSessions,
   getSessionUpdates,
 } from "@/lib/toolcall/functions";
+import {
+  parseRenderSpec,
+  renderChatUiArgsJsonSchema,
+} from "@/lib/json-render/chat-renderer";
 
 export const functionsmap: Record<string, any> = {
   startSession: (args: {
@@ -35,8 +39,8 @@ export const functionsmap: Record<string, any> = {
   render_altair: (args: { json_graph: string }) => {
     return args.json_graph;
   },
-  render_chat_ui: (args: { spec_json: string }) => {
-    return args.spec_json;
+  render_chat_ui: (args: { spec: unknown }) => {
+    return parseRenderSpec(args.spec);
   },
   fetchuserdata: (args: { userid: number }) => {
     return fetchBankdetails(args?.userid);
@@ -199,18 +203,8 @@ export const declaration: FunctionDeclaration[] = [
   {
     name: "render_chat_ui",
     description:
-      "Render structured UI into the chat surface using a JSON render spec string. Allowed components: Card, Stack, Heading, Text, Badge, Separator, Table, Alert, MarkdownCards. Do not include interactive bindings such as on/watch/actions. Keep payload concise.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        spec_json: {
-          type: Type.STRING,
-          description:
-            "JSON STRING render spec. Must be a valid JSON string with a root element and supported component types.",
-        },
-      },
-      required: ["spec_json"],
-    },
+      "Render structured chat UI by passing a nested spec object in { spec: ... }.",
+    parametersJsonSchema: renderChatUiArgsJsonSchema,
   },
   {
     name: "fetchdebit",
