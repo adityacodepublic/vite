@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useMemo } from "react";
@@ -30,6 +31,7 @@ export function MarkdownBoardPanel() {
   const { cards, activeCardId } = useChatStore((state) => state.markdownBoard);
   const openMarkdownCard = useChatStore((state) => state.openMarkdownCard);
   const closeMarkdownCard = useChatStore((state) => state.closeMarkdownCard);
+  const removeMarkdownCard = useChatStore((state) => state.removeMarkdownCard);
 
   const activeCard = useMemo(
     () => cards.find((card) => card.id === activeCardId) ?? null,
@@ -39,32 +41,50 @@ export function MarkdownBoardPanel() {
   return (
     <section className="h-full w-screen shrink-0 overflow-y-auto bg-gradient-to-br from-[#f5f7fb] via-[#f4fbf8] to-[#eef5ff] px-5 pb-36 pt-6 md:px-8">
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="mb-4 mt-2 flex items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Markdown Board
-            </p>
-            <h2 className="text-2xl font-semibold text-zinc-900">Knowledge Cards</h2>
+            <h2 className="text-2xl font-semibold text-zinc-900">Card Board</h2>
           </div>
-          <p className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-zinc-600 shadow-sm">
+          {/* <p className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-zinc-600 shadow-sm">
             {cards.length} / 50
-          </p>
+          </p> */}
         </div>
 
         {cards.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 px-6 py-14 text-center text-sm text-zinc-500">
             No markdown cards yet. The assistant can add cards using
-            <span className="ml-1 font-semibold text-zinc-700">render_chat_ui</span>.
+            <span className="ml-1 font-semibold text-zinc-700">
+              render_chat_ui
+            </span>
+            .
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {cards.map((card) => (
-              <button
+              <article
                 key={card.id}
-                type="button"
                 onClick={() => openMarkdownCard(card.id)}
-                className="group rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openMarkdownCard(card.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                className="group relative cursor-pointer rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
               >
+                <button
+                  type="button"
+                  aria-label={`Delete ${card.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeMarkdownCard(card.id);
+                  }}
+                  className="absolute right-3 top-3 rounded-md p-1 text-zinc-400 opacity-0 transition hover:bg-zinc-100 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 size={14} />
+                </button>
                 <h3 className="line-clamp-2 text-base font-semibold text-zinc-900">
                   {card.title}
                 </h3>
@@ -74,7 +94,7 @@ export function MarkdownBoardPanel() {
                 <p className="mt-4 text-xs font-medium text-zinc-500 group-hover:text-zinc-800">
                   Open card
                 </p>
-              </button>
+              </article>
             ))}
           </div>
         )}
@@ -98,7 +118,9 @@ export function MarkdownBoardPanel() {
               onClick={(event) => event.stopPropagation()}
             >
               <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
-                <h3 className="text-lg font-semibold text-zinc-900">{activeCard.title}</h3>
+                <h3 className="text-lg font-semibold text-zinc-900">
+                  {activeCard.title}
+                </h3>
                 <button
                   type="button"
                   onClick={closeMarkdownCard}

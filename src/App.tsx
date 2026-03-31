@@ -28,7 +28,9 @@ const apiOptions: LiveClientOptions = {
 function App() {
   // this video reference is used for displaying the active stream, whether that is the webcam or screen capture
   // feel free to style as you see fit
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(
+    null,
+  ) as React.RefObject<HTMLVideoElement>;
   // either the screen capture, the video or null, if null we hide it
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const horizontalPaneRef = useRef<HTMLDivElement>(null);
@@ -45,7 +47,7 @@ function App() {
       }
 
       event.preventDefault();
-      container.scrollLeft += event.deltaY;
+      container.scrollLeft += event.deltaY * 5;
     };
 
     container.addEventListener("wheel", onWheel, { passive: false });

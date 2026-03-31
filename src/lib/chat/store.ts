@@ -78,6 +78,7 @@ type ChatState = {
   upsertMarkdownCards: (cards: MarkdownBoardCardInput[]) => void;
   openMarkdownCard: (cardId: string) => void;
   closeMarkdownCard: () => void;
+  removeMarkdownCard: (cardId: string) => void;
   clearMarkdownBoard: () => void;
   reset: () => void;
 };
@@ -339,6 +340,23 @@ export const useChatStore = create<ChatState>((set) => ({
         activeCardId: null,
       },
     }));
+  },
+  removeMarkdownCard: (cardId) => {
+    set((state) => {
+      const nextCards = state.markdownBoard.cards.filter((card) => card.id !== cardId);
+      persistMarkdownBoard(nextCards);
+
+      return {
+        markdownBoard: {
+          ...state.markdownBoard,
+          cards: nextCards,
+          activeCardId:
+            state.markdownBoard.activeCardId === cardId
+              ? null
+              : state.markdownBoard.activeCardId,
+        },
+      };
+    });
   },
   clearMarkdownBoard: () => {
     persistMarkdownBoard([]);
