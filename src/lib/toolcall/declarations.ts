@@ -75,8 +75,9 @@ export const functionsmap: Record<string, any> = {
     prompt: string;
     sessionId?: string;
     model?: string;
+    clientId?: string;
   }) => {
-    return startSession(args.prompt, args.sessionId, args.model);
+    return startSession(args.prompt, args.sessionId, args.model, args.clientId);
   },
   listSessions: () => {
     return listSessions();
@@ -225,6 +226,11 @@ export const declaration: FunctionDeclaration[] = [
           description:
             "Optional model name for routing (for example, when quality/speed/cost requirements require a specific model).",
         },
+        clientId: {
+          type: Type.STRING,
+          description:
+            "Whenever User whenever user tells give the task to coworker. first use listSessions to get onlineFollowerId which is not 'your' and use that id as clientId to startsession. Its optional if no onlineFollowerId is present.",
+        },
       },
       required: ["prompt"],
     },
@@ -232,7 +238,7 @@ export const declaration: FunctionDeclaration[] = [
   {
     name: "listSessions",
     description:
-      "List known core-agent sessions. Use this to discover available session IDs before resuming work or to inspect whether a prior task is still running or already finished.",
+      "List today's core-agent sessions grouped by node. Response shape is { your: Session[], <onlineFollowerId>: Session[] }. Only active online followers are included.",
     parameters: {
       type: Type.OBJECT,
       properties: {},

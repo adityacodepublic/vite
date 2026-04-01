@@ -4,12 +4,13 @@ const SUPABASE_URL = import.meta.env.VITE_HOST_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const SESSION_API_BASE =
   (import.meta.env.VITE_SESSION_API_BASE as string | undefined) ??
-  "http://localhost:3457";
+  "http://localhost:3458";
 
 type StartSessionRequest = {
   sessionId?: string;
   prompt: string;
   model?: string;
+  clientId?: string;
 };
 
 type StartSessionResponse =
@@ -24,13 +25,13 @@ type StartSessionResponse =
       error: string;
     };
 
-type ListSessionsResponse = {
-  sessions: Array<{
-    id: string;
-    title: string;
-    status: "running" | "finished";
-  }>;
+type SessionSummary = {
+  id: string;
+  title: string;
+  status: "running" | "finished";
 };
+
+type ListSessionsResponse = Record<string, SessionSummary[]>;
 
 type GetUpdatesResponse =
   | {
@@ -49,9 +50,11 @@ export async function startSession(
   prompt: string,
   sessionId?: string,
   model: string = "github-copilot/gpt-5.3-codex",
+  clientId?: string,
 ): Promise<StartSessionResponse> {
   const body: StartSessionRequest = { prompt };
   if (sessionId) body.sessionId = sessionId;
+  if (clientId) body.clientId = clientId;
   body.model = model;
 
   const response = await fetch(`${SESSION_API_BASE}/session/start`, {
