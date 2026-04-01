@@ -6,31 +6,11 @@ import {
 } from "framer-motion";
 import { Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import { useMemo } from "react";
 import { useChatStore } from "@/lib/chat/store";
-
-const previewText = (markdown: string, maxChars: number = 160) => {
-  const normalized = markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/#+\s?/g, "")
-    .replace(/\*\*/g, "")
-    .replace(/\*/g, "")
-    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!normalized) {
-    return "No preview available.";
-  }
-
-  if (normalized.length <= maxChars) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, maxChars).trimEnd()}...`;
-};
 
 export function MarkdownBoardPanel() {
   const { cards, activeCardId } = useChatStore((state) => state.markdownBoard);
@@ -119,9 +99,16 @@ export function MarkdownBoardPanel() {
                       <h3 className="line-clamp-2 text-base font-semibold text-zinc-900">
                         {card.title}
                       </h3>
-                      <p className="mt-2 line-clamp-4 text-sm text-zinc-600">
-                        {previewText(card.markdown)}
-                      </p>
+                      <div className="relative mt-2 max-h-28 overflow-hidden [mask-image:linear-gradient(to_bottom,black_78%,transparent_100%)]">
+                        <article className="markdown-content text-sm leading-6 text-zinc-600">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                          >
+                            {card.markdown}
+                          </ReactMarkdown>
+                        </article>
+                      </div>
                       <p className="mt-4 text-xs font-medium text-zinc-500 group-hover:text-zinc-800">
                         Open card
                       </p>
@@ -179,7 +166,10 @@ export function MarkdownBoardPanel() {
 
                     <div className="max-h-[calc(85vh-72px)] overflow-y-auto px-5 py-4">
                       <article className="markdown-content text-sm leading-6 text-zinc-800">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                        >
                           {activeCard.markdown}
                         </ReactMarkdown>
                       </article>

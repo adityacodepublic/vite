@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import { useMemo, useState } from "react";
 
 export type MarkdownCardItem = {
@@ -12,26 +14,6 @@ export type MarkdownCardItem = {
 type MarkdownCardsProps = {
   title?: string;
   cards: MarkdownCardItem[];
-};
-
-const previewText = (markdown: string, maxChars: number = 130) => {
-  const normalized = markdown
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/#+\s?/g, "")
-    .replace(/\*\*/g, "")
-    .replace(/\*|_/g, "")
-    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!normalized) {
-    return "No preview available.";
-  }
-
-  return normalized.length > maxChars
-    ? `${normalized.slice(0, maxChars).trimEnd()}...`
-    : normalized;
 };
 
 export function MarkdownCards({ title, cards }: MarkdownCardsProps) {
@@ -69,9 +51,16 @@ export function MarkdownCards({ title, cards }: MarkdownCardsProps) {
             className="rounded-xl border border-zinc-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <p className="line-clamp-2 text-sm font-semibold text-zinc-900">{card.title}</p>
-            <p className="mt-1 line-clamp-3 text-xs text-zinc-600">
-              {previewText(card.markdown)}
-            </p>
+            <div className="relative mt-1 max-h-24 overflow-hidden [mask-image:linear-gradient(to_bottom,black_78%,transparent_100%)]">
+              <article className="markdown-content text-xs leading-5 text-zinc-600">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {card.markdown}
+                </ReactMarkdown>
+              </article>
+            </div>
           </button>
         ))}
       </div>
@@ -105,7 +94,10 @@ export function MarkdownCards({ title, cards }: MarkdownCardsProps) {
               </header>
               <div className="max-h-[calc(80vh-62px)] overflow-y-auto px-4 py-3">
                 <article className="markdown-content text-sm leading-6 text-zinc-800">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
                     {activeCard.markdown}
                   </ReactMarkdown>
                 </article>
