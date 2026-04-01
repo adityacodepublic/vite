@@ -47,7 +47,7 @@ function App() {
       }
 
       event.preventDefault();
-      container.scrollLeft += event.deltaY * 5;
+      container.scrollLeft += event.deltaY * 15;
     };
 
     container.addEventListener("wheel", onWheel, { passive: false });
@@ -59,7 +59,7 @@ function App() {
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
-        <div className="relative h-screen w-full overflow-hidden bg-[#e0ecf46d] text-gray-300">
+        <div className="relative h-screen w-full overflow-hidden bg-[#e0ecf46d] ">
           {/* <SidePanel /> */}
           <div
             ref={horizontalPaneRef}

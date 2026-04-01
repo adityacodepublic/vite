@@ -160,6 +160,13 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   }
 
   protected onerror(e: ErrorEvent) {
+    console.error("[LiveAPI][server.error:event]", {
+      message: e.message,
+      filename: e.filename,
+      lineno: e.lineno,
+      colno: e.colno,
+      error: e.error,
+    });
     this.log("server.error", e.message);
     this.emit("error", e);
   }
@@ -171,6 +178,13 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       `server.close`,
       `disconnected (code: ${e.code}, clean: ${e.wasClean})${e.reason ? ` with reason: ${e.reason}` : ""}`,
     );
+    if (!e.wasClean || e.code >= 4000) {
+      console.error("[LiveAPI][server.close:abnormal]", {
+        code: e.code,
+        wasClean: e.wasClean,
+        reason: e.reason,
+      });
+    }
     this.emit("close", e);
   }
 

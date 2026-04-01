@@ -63,7 +63,11 @@ const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
     .object({
       type: componentTypeSchema,
       props: recordSchema.optional(),
-      children: z.array(treeNodeSchema).optional(),
+      children: z
+        .array(treeNodeSchema)
+        .nullable()
+        .optional()
+        .transform((value) => value ?? undefined),
     })
     .superRefine((node, ctx) => {
       if (node.type !== "MarkdownCards") {
@@ -86,14 +90,11 @@ const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
 
 export const treeSpecSchema: z.ZodType<TreeSpec> = z.object({
   root: treeNodeSchema,
-  state: recordSchema.optional(),
+  state: recordSchema
+    .nullable()
+    .optional()
+    .transform((value) => value ?? undefined),
 });
-
-export const renderChatUiArgsSchema = z.object({
-  spec: treeSpecSchema,
-});
-
-export const renderChatUiArgsJsonSchema = z.toJSONSchema(renderChatUiArgsSchema);
 
 function extractMarkdownCards(spec: unknown): MarkdownBoardCardInput[] {
   if (!isObject(spec) || !isObject(spec.root)) {

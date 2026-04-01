@@ -7,10 +7,7 @@ import { useEffect } from "react";
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { useChatStore } from "@/lib/chat/store";
 import type { ParsedRenderSpec } from "@/lib/json-render/chat-renderer";
-import {
-  buildRenderChatUiInstruction,
-  ChatSpecRenderer,
-} from "@/lib/json-render/chat-runtime-renderer";
+import { ChatSpecRenderer } from "@/lib/json-render/chat-runtime-renderer";
 import { declaration, functionsmap } from "@/lib/toolcall/declarations";
 import { AltairChart } from "./AltairChart";
 import { ChatRenderErrorBoundary } from "./ChatRenderErrorBoundary";
@@ -41,6 +38,40 @@ const isRenderToolResult = (value: unknown): value is ParsedRenderSpec => {
   );
 };
 
+const MAX_LOG_PREVIEW_CHARS = 1600;
+
+const toLogPreview = (value: unknown): string => {
+  try {
+    const serialized = JSON.stringify(value);
+    if (!serialized) {
+      return "";
+    }
+    if (serialized.length <= MAX_LOG_PREVIEW_CHARS) {
+      return serialized;
+    }
+    return `${serialized.slice(0, MAX_LOG_PREVIEW_CHARS)}...`;
+  } catch {
+    return "[unserializable]";
+  }
+};
+
+const toolLog = (
+  level: "info" | "warn" | "error",
+  stage: string,
+  details: Record<string, unknown>,
+) => {
+  const prefix = `[ToolCall][${stage}]`;
+  if (level === "error") {
+    console.error(prefix, details);
+    return;
+  }
+  if (level === "warn") {
+    console.warn(prefix, details);
+    return;
+  }
+  console.log(prefix, details);
+};
+
 export function ChatScreen() {
   const { client, setConfig, setModel } = useLiveAPIContext();
   const {
@@ -54,9 +85,11 @@ export function ChatScreen() {
     upsertMarkdownCards,
   } = useChatStore();
 
-  const renderChatUiInstruction = buildRenderChatUiInstruction();
-
   useEffect(() => {
+    console.log("[ToolConfig][render_ui.declaration]", {
+      declaration: declaration.find((item) => item.name === "render_ui"),
+    });
+
     setModel(MODEL_NAME);
     setConfig({
       responseModalities: [Modality.AUDIO],
@@ -74,15 +107,13 @@ You are a voice-first document and financial assistant.
 - Do not hallucinate. Ask follow-up questions when needed.
 - Use function tools for data retrieval and actions.
 - Use render_altair for Vega/Altair chart payloads only.
-
-${renderChatUiInstruction}
 `,
           },
         ],
       },
       tools: [{ functionDeclarations: declaration }],
     });
-  }, [renderChatUiInstruction, setConfig, setModel]);
+  }, [setConfig, setModel]);
 
   useEffect(() => {
     const onContent = (content: LiveServerContent) => {
@@ -99,20 +130,25 @@ ${renderChatUiInstruction}
     const onToolCall = async (toolCall: LiveServerToolCall) => {
       const calls = toolCall.functionCalls ?? [];
       if (!calls.length) {
+        toolLog("warn", "received.empty", { toolCall });
         return;
       }
 
       const functionResponses = await Promise.all(
         calls.map(async (fc) => {
-          console.info("[toolcall] received", {
-            id: fc.id,
-            name: fc.name,
-            args: fc.args,
-          });
+          const callId = fc.id ?? "unknown-call-id";
+          const toolName = fc.name ?? "unknown-tool";
+          const startedAt = performance.now();
 
           const fn = fc.name ? functionsmap[fc.name] : undefined;
 
           if (!fc.name || typeof fn !== "function") {
+            toolLog("error", "execute.unknown-tool", {
+              callId,
+              toolName,
+              argsPreview: toLogPreview(fc.args),
+              location: "ChatScreen.tsx:onToolCall:function-lookup",
+            });
             return {
               id: fc.id,
               name: fc.name,
@@ -121,19 +157,34 @@ ${renderChatUiInstruction}
           }
 
           try {
+            toolLog("info", "execute.start", {
+              callId,
+              toolName,
+              argsPreview: toLogPreview(fc.args),
+              location: "ChatScreen.tsx:onToolCall:fn(fc.args)",
+            });
             const output = await fn(fc.args);
+            const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
+
+            toolLog("info", "execute.success", {
+              callId,
+              toolName,
+              durationMs,
+              outputPreview: toLogPreview(output),
+            });
 
             if (fc.name === "render_altair" && typeof output === "string") {
               addAltairSpec(output);
-            } else if (fc.name === "render_chat_ui") {
+            } else if (fc.name === "render_ui") {
               if (!isRenderToolResult(output)) {
-                console.error("[render_chat_ui] invalid-tool-output-shape", {
-                  id: fc.id,
-                  name: fc.name,
-                  output,
+                toolLog("error", "render_ui.invalid-output-shape", {
+                  callId,
+                  toolName,
+                  outputPreview: toLogPreview(output),
+                  location: "ChatScreen.tsx:onToolCall:isRenderToolResult",
                 });
                 addToolResult(fc.name, {
-                  error: "render_chat_ui returned unexpected output shape.",
+                  error: "render_ui returned unexpected output shape.",
                   output,
                 });
                 return {
@@ -142,20 +193,34 @@ ${renderChatUiInstruction}
                   response: {
                     output: {
                       error:
-                        "render_chat_ui failed because tool output format is invalid.",
+                        "render_ui failed because tool output format is invalid.",
                     },
                   },
                 };
               }
 
               const parsed = output;
-              console.info("[render_chat_ui] parsed", {
-                valid: parsed.valid,
-                issues: parsed.issues,
-                warnings: parsed.warnings,
-                summary: parsed.summary,
-                markdownCards: parsed.markdownCards.length,
-              });
+              if (parsed.valid) {
+                toolLog("info", "render_ui.validation.ok", {
+                  callId,
+                  toolName,
+                  summary: parsed.summary,
+                  markdownCards: parsed.markdownCards.length,
+                  warnings: parsed.warnings,
+                });
+              } else {
+                const firstIssue = parsed.issues[0] ?? "unknown validation issue";
+                toolLog("error", "render_ui.validation.failed", {
+                  callId,
+                  toolName,
+                  firstIssue,
+                  issues: parsed.issues,
+                  summary: parsed.summary,
+                  argsPreview: toLogPreview(fc.args),
+                  location: "chat-renderer.ts:treeSpecSchema.safeParse",
+                });
+              }
+
               addJsonRenderSpec(
                 parsed.spec,
                 parsed.valid,
@@ -166,29 +231,25 @@ ${renderChatUiInstruction}
                 upsertMarkdownCards(parsed.markdownCards);
               }
               if (parsed.warnings.length) {
-                console.warn("[render_chat_ui] warnings", {
-                  id: fc.id,
+                toolLog("warn", "render_ui.warnings", {
+                  callId,
+                  toolName,
                   warnings: parsed.warnings,
                 });
                 addSystemMessage(
-                  `render_chat_ui warnings: ${parsed.warnings.join(" | ")}`,
+                  `render_ui warnings: ${parsed.warnings.join(" | ")}`,
                 );
               }
               if (!parsed.valid) {
-                console.error("[render_chat_ui] validation-failed", {
-                  id: fc.id,
-                  issues: parsed.issues,
-                  summary: parsed.summary,
-                });
                 addSystemMessage(
                   "Received an invalid render spec. Showing fallback diagnostics.",
                 );
               }
             } else {
-              console.info("[toolcall] output", {
-                id: fc.id,
-                name: fc.name,
-                output,
+              toolLog("info", "execute.output", {
+                callId,
+                toolName,
+                outputPreview: toLogPreview(output),
               });
               addToolResult(fc.name, output);
             }
@@ -201,12 +262,15 @@ ${renderChatUiInstruction}
           } catch (error) {
             const message =
               error instanceof Error ? error.message : "Tool call failed.";
-            console.error("[toolcall] execution-failed", {
-              id: fc.id,
-              name: fc.name,
-              args: fc.args,
+            const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
+            toolLog("error", "execute.error", {
+              callId,
+              toolName,
+              durationMs,
+              argsPreview: toLogPreview(fc.args),
               error,
               message,
+              location: "ChatScreen.tsx:onToolCall:try/catch",
             });
             addToolResult(fc.name, { error: message });
             return {
@@ -218,7 +282,22 @@ ${renderChatUiInstruction}
         }),
       );
 
-      client.sendToolResponse({ functionResponses });
+      try {
+        client.sendToolResponse({ functionResponses });
+        functionResponses.forEach((response) => {
+          toolLog("info", "response.sent", {
+            callId: response.id ?? "unknown-call-id",
+            toolName: response.name ?? "unknown-tool",
+            payloadPreview: toLogPreview(response.response),
+          });
+        });
+      } catch (error) {
+        toolLog("error", "response.send-failed", {
+          payloadPreview: toLogPreview({ functionResponses }),
+          error,
+          location: "ChatScreen.tsx:onToolCall:client.sendToolResponse",
+        });
+      }
     };
 
     client.on("content", onContent);

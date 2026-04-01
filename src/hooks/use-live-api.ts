@@ -83,7 +83,13 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
     };
 
     const onError = (error: ErrorEvent) => {
-      console.error("error", error);
+      console.error("[LiveAPI][hook.error]", {
+        message: error.message,
+        filename: error.filename,
+        lineno: error.lineno,
+        colno: error.colno,
+        error: error.error,
+      });
     };
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();

@@ -18,9 +18,57 @@ import {
   getSessionUpdates,
 } from "@/lib/toolcall/functions";
 import {
-  parseRenderSpec,
-  renderChatUiArgsJsonSchema,
-} from "@/lib/json-render/chat-renderer";
+  chatCatalog,
+  extractAvailableComponentsBlock,
+} from "@/lib/json-render/chat-catalog";
+import { parseRenderSpec } from "@/lib/json-render/chat-renderer";
+
+const RENDER_UI_COMPONENTS_DOC =
+  extractAvailableComponentsBlock(chatCatalog.prompt()) ||
+  "AVAILABLE COMPONENTS: Card, Stack, Heading, Text, Badge, Separator, Table, Alert, MarkdownCards";
+
+const RENDER_UI_DOC = [
+  "Render structured chat UI from a JSON string payload.",
+  "Send `spec_json` as a JSON string. Accepted forms: { spec: { root, state? } } or { root, state? }.",
+  "Use nested tree nodes only (root -> children). Do not send JSONL patch lines or flat /elements maps.",
+  "Each node should look like: { type, props?, children? }. `type` must be one of the supported components below.",
+  "If the user asks to render/demo components without full data, fill missing required fields with sensible sample values using your best judgment. Or ask the user UG",
+  "Prefer producing a valid render payload over asking follow-up questions when intent is component preview/demo.",
+  "Never leave required component fields empty or omitted.",
+  "For markdown cards, use: { type: 'MarkdownCards', props: { title?, cards: [{ title, markdown, id? }] } }.",
+  "Minimal valid starter fields by component:",
+  "- Heading/Text/Badge: provide `props.text`.",
+  "- Alert: provide `props.title` (optional: message/type).",
+  "- Table: provide non-empty `props.columns` and `props.rows`.",
+  "- MarkdownCards: provide non-empty `props.cards` with { title, markdown }.",
+  "Keep the UI concise and relevant to the user request.",
+  "",
+  RENDER_UI_COMPONENTS_DOC,
+].join("\n");
+
+// const RENDER_UI_DOC = [
+//   "Render structured chat UI from a JSON string payload.",
+//   "Send `spec_json` as a JSON string. Accepted forms: { spec: { root, state? } } or { root, state? }.",
+//   "Use nested tree nodes only (root -> children). Do not send JSONL patch lines or flat /elements maps.",
+//   "Each node should look like: { type, props?, children? }. `type` must be one of the supported components below.",
+//   "If the user asks to render/demo components without full data, fill missing required fields with sensible sample values using your best judgment. Or ask the user UG",
+//   "Prefer producing a valid render payload over asking follow-up questions when intent is component preview/demo.",
+//   "Never leave required component fields empty or omitted.",
+//   chatCatalog.prompt(),
+// ].join("\n");
+
+function parseRenderUiInput(specJson: string): unknown {
+  const parsed = JSON.parse(specJson) as unknown;
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    "spec" in parsed
+  ) {
+    return (parsed as { spec: unknown }).spec;
+  }
+  return parsed;
+}
 
 export const functionsmap: Record<string, any> = {
   startSession: (args: {
@@ -39,8 +87,45 @@ export const functionsmap: Record<string, any> = {
   render_altair: (args: { json_graph: string }) => {
     return args.json_graph;
   },
-  render_chat_ui: (args: { spec: unknown }) => {
-    return parseRenderSpec(args.spec);
+  // render_chat_ui: (args: { spec: unknown }) => {
+  //   const parsed = parseRenderSpec(args.spec);
+  //   console.log("Received render spec:", JSON.stringify(args.spec, null, 2));
+  //   console.log("Parsed render spec:", JSON.stringify(parsed, null, 2));
+  //   return parsed;
+  // },
+  render_ui: (args: { spec_json: string }) => {
+    try {
+      const input = parseRenderUiInput(args.spec_json);
+      const parsed = parseRenderSpec(input);
+      console.log("[render_ui] received JSON:", args.spec_json);
+      console.log(
+        "[render_ui] parsed result:",
+        JSON.stringify(parsed, null, 2),
+      );
+      return parsed;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Invalid JSON payload.";
+      console.error("[render_ui] invalid JSON", {
+        error,
+        spec_json: args.spec_json,
+      });
+      return {
+        spec: null,
+        valid: false,
+        issues: [`spec_json: ${message}`],
+        warnings: [],
+        markdownCards: [],
+        summary: {
+          rootType: null,
+          nodeCount: 0,
+        },
+      };
+    }
+  },
+  sendToUser: (args: { text: string }) => {
+    console.log("[sendToUser]", args.text);
+    return { delivered: true, text: args.text };
   },
   fetchuserdata: (args: { userid: number }) => {
     return fetchBankdetails(args?.userid);
@@ -200,11 +285,45 @@ export const declaration: FunctionDeclaration[] = [
       required: ["json_graph"],
     },
   },
+  // {
+  //   name: "render_chat_ui",
+  //   description: "Legacy object-shaped render tool. Disabled in favor of render_ui.",
+  //   parameters: {
+  //     type: Type.OBJECT,
+  //     properties: {
+  //       spec: { type: Type.OBJECT },
+  //     },
+  //     required: ["spec"],
+  //   },
+  // },
   {
-    name: "render_chat_ui",
-    description:
-      "Render structured chat UI by passing a nested spec object in { spec: ... }.",
-    parametersJsonSchema: renderChatUiArgsJsonSchema,
+    name: "render_ui",
+    description: RENDER_UI_DOC,
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        spec_json: {
+          type: Type.STRING,
+          description:
+            'JSON string for UI spec. Recommended form: {"spec":{"root":{"type":"MarkdownCards","props":{"cards":[{"title":"Topic","markdown":"## Notes"}]}}}}. You may also send {"root":{...}} directly.',
+        },
+      },
+      required: ["spec_json"],
+    },
+  },
+  {
+    name: "sendToUser",
+    description: "Send a direct plain-text message to the user channel.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        text: {
+          type: Type.STRING,
+          description: "Message text to send to the user.",
+        },
+      },
+      required: ["text"],
+    },
   },
   {
     name: "fetchdebit",
