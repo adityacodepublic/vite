@@ -70,8 +70,8 @@ const coreFunctionsMap: Record<string, any> = {
   }) => {
     return startSession(args.prompt, args.sessionId, args.model, args.clientId);
   },
-  listSessions: () => {
-    return listSessions();
+  listSessions: (args: { numberOfDaysBefore?: number }) => {
+    return listSessions(args?.numberOfDaysBefore ?? 0);
   },
   getSessionUpdates: (args: { sessionId: string }) => {
     return getSessionUpdates(args.sessionId);
@@ -124,7 +124,7 @@ const coreDeclarations: FunctionDeclaration[] = [
   {
     name: "startSession",
     description:
-      "Handover Browser and files related tasks and complex tasks to the core agent. Use this when a new user goal arrives and you dnt have tools to do it or when you need the core agent to continue an existing work thread ( find existing sessions with listSessions ). Provide a clear, self-contained prompt describing the task to execute. If continuing prior work, include sessionId. Optionally set model when routing requires a specific model. github-copilot/gemini-3-flash-preview, github-copilot/gpt-5.3-codex, github-copilot/claude-sonnet-4.5 in most cases no need to set model, the core agent will route to the best model.",
+      "You have a core agent (your) to help you. Handover Browser, files related tasks and any complex tasks you can't do to your core agent. Use this when a new user goal arrives and you don't have tools to do it or when you need the core agent to continue an existing work thread ( find existing sessions with listSessions ). Provide a clear, self-contained prompt describing the task to execute. If continuing prior work, include sessionId. Optionally set model when routing requires a specific model. github-copilot/gemini-3-flash-preview (good for browsing), github-copilot/gpt-5.3-codex in most cases no need to set model, the core agent will route to the best model.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -155,10 +155,16 @@ const coreDeclarations: FunctionDeclaration[] = [
   {
     name: "listSessions",
     description:
-      "List today's core-agent sessions grouped by node. Response shape is { your: Session[], <onlineFollowerId>: Session[] }. Only active online followers are included.",
+      "List agent sessions grouped by worker node with optional history window. Response shape is { your: Session[], <onlineFollowerName>: Session[] }. Only active online followers are included.",
     parameters: {
       type: Type.OBJECT,
-      properties: {},
+      properties: {
+        numberOfDaysBefore: {
+          type: Type.NUMBER,
+          description:
+            "Optional day window before today (0-5). 0 means today only, 1 means today + yesterday, up to max 5 days before.",
+        },
+      },
       required: [],
     },
   },

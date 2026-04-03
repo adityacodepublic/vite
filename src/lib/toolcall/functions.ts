@@ -62,8 +62,11 @@ export async function startSession(
   return response.json();
 }
 
-export async function listSessions(): Promise<ListSessionsResponse> {
-  const response = await fetch(`${SESSION_API_BASE}/sessions`);
+export async function listSessions(
+  numberOfDaysBefore: number = 0,
+): Promise<ListSessionsResponse> {
+  const query = `?numberOfDaysBefore=${encodeURIComponent(String(numberOfDaysBefore))}`;
+  const response = await fetch(`${SESSION_API_BASE}/sessions${query}`);
   return response.json();
 }
 
