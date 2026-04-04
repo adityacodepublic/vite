@@ -6,7 +6,7 @@ export const Waveform = () => {
       viewBox="1 1 21 21"
       fill="none"
       stroke="currentColor"
-      stroke-width="0.1"
+      strokeWidth="0.1"
       strokeLinecap="round"
       strokeLinejoin="round"
       className="lucide lucide-arrow-up size-6"

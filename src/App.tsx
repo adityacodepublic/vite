@@ -7,10 +7,10 @@ import { ChatScreen } from "./components/chat/ChatScreen";
 import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
 
 // import SidePanel from "./components/side-panel/SidePanel";
-//import { addTransaction, fetchUserBalance, p2ptransfer } from "./lib/toolcall/functions";
+//import { addTransaction, fetchUserBalance, p2pTransfer } from "./lib/toolcall/functions";
 //console.log(await addTransaction(106, 500, "debit", "user 102 sent money to 106."));
 //console.log(await addTransaction(102, 500, "credit", "user 102 recieved money from 106."));
-//console.log(await p2ptransfer(106,102,500,"testing transfer"));
+//console.log(await p2pTransfer(106,102,500,"testing transfer"));
 //console.log(await fetchUserBalance(106))
 
 // const host = "generativelanguage.googleapis.com";
