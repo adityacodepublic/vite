@@ -35,11 +35,22 @@ export type JsonRenderChatMessage = BaseChatMessage & {
   warnings: string[];
 };
 
+export type AttachmentChatMessage = BaseChatMessage & {
+  kind: "attachment";
+  mediaType: "image" | "video" | "audio";
+  name: string;
+  previewUrl: string;
+  progress: number;
+  status: "streaming" | "done" | "failed";
+  error?: string;
+};
+
 export type ChatMessage =
   | TextChatMessage
   | ToolChatMessage
   | AltairChatMessage
-  | JsonRenderChatMessage;
+  | JsonRenderChatMessage
+  | AttachmentChatMessage;
 
 export type MarkdownBoardCard = {
   id: string;
@@ -75,6 +86,14 @@ type ChatState = {
     warnings?: string[],
   ) => void;
   addSystemMessage: (text: string) => void;
+  addUserAttachment: (input: {
+    mediaType: "image" | "video" | "audio";
+    name: string;
+    previewUrl: string;
+  }) => string;
+  updateAttachmentProgress: (id: string, progress: number) => void;
+  finalizeAttachment: (id: string) => void;
+  failAttachment: (id: string, error?: string) => void;
   upsertMarkdownCards: (cards: MarkdownBoardCardInput[]) => void;
   openMarkdownCard: (cardId: string) => void;
   closeMarkdownCard: () => void;
@@ -291,6 +310,53 @@ export const useChatStore = create<ChatState>((set) => ({
           text: trimmed,
         },
       ],
+    }));
+  },
+  addUserAttachment: (input) => {
+    const id = createId();
+    set((state) => ({
+      messages: [
+        ...state.messages,
+        {
+          id,
+          kind: "attachment",
+          role: "user",
+          createdAt: Date.now(),
+          mediaType: input.mediaType,
+          name: input.name,
+          previewUrl: input.previewUrl,
+          progress: 0,
+          status: "streaming",
+        },
+      ],
+    }));
+    return id;
+  },
+  updateAttachmentProgress: (id, progress) => {
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message.kind === "attachment" && message.id === id
+          ? { ...message, progress: Math.max(0, Math.min(1, progress)) }
+          : message,
+      ),
+    }));
+  },
+  finalizeAttachment: (id) => {
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message.kind === "attachment" && message.id === id
+          ? { ...message, status: "done", progress: 1, error: undefined }
+          : message,
+      ),
+    }));
+  },
+  failAttachment: (id, error) => {
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message.kind === "attachment" && message.id === id
+          ? { ...message, status: "failed", error }
+          : message,
+      ),
     }));
   },
   upsertMarkdownCards: (cards) => {

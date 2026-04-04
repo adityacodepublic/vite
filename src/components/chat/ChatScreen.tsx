@@ -11,6 +11,7 @@ import { ChatSpecRenderer } from "@/lib/json-render/chat-runtime-renderer";
 import { declaration, functionsmap } from "@/lib/toolcall/declarations";
 import { AltairChart } from "./AltairChart";
 import { ChatRenderErrorBoundary } from "./ChatRenderErrorBoundary";
+import { AttachmentProgressCircle } from "./AttachmentProgressCircle";
 
 const MODEL_NAME = "models/gemini-3.1-flash-live-preview";
 
@@ -326,13 +327,13 @@ You are a voice-first document and financial assistant.
         {messages.map((message) => {
           const isUser = message.role === "user";
           const bubbleClass = isUser
-            ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-zinc-900 px-4 py-3 text-sm text-white"
-            : "mr-auto max-w-[92%] rounded-2xl rounded-bl-sm bg-white/85 px-4 py-3 text-sm text-zinc-900 shadow-sm";
+            ? "ml-auto w-fit max-w-[72%] rounded-2xl rounded-br-sm bg-zinc-900 px-4 py-3 text-sm text-white"
+            : "mr-auto w-fit max-w-[76%] rounded-2xl rounded-bl-sm bg-white/85 px-4 py-3 text-sm text-zinc-900 shadow-sm";
 
           if (message.kind === "text") {
             return (
               <article key={message.id} className={bubbleClass}>
-                <p className="whitespace-pre-wrap">{message.text}</p>
+                <p className="whitespace-pre-wrap break-words">{message.text}</p>
               </article>
             );
           }
@@ -389,6 +390,54 @@ You are a voice-first document and financial assistant.
                       <p key={`${message.id}-warning-${warning}`}>! {warning}</p>
                     ))}
                   </div>
+                ) : null}
+              </article>
+            );
+          }
+
+          if (message.kind === "attachment") {
+            return (
+              <article
+                key={message.id}
+                className="ml-auto w-fit max-w-[70vw] overflow-hidden rounded-2xl rounded-br-sm bg-zinc-900/90 p-2 text-white shadow-sm"
+              >
+                <div className="relative overflow-hidden rounded-xl bg-black/30">
+                  {message.mediaType === "image" ? (
+                    <img
+                      src={message.previewUrl}
+                      alt={message.name}
+                      className="block max-h-72 max-w-[70vw] object-contain"
+                    />
+                  ) : null}
+                  {message.mediaType === "video" ? (
+                    <video
+                      src={message.previewUrl}
+                      controls
+                      playsInline
+                      className="block max-h-72 max-w-[70vw]"
+                    />
+                  ) : null}
+                  {message.mediaType === "audio" ? (
+                    <div className="flex min-h-24 items-center justify-center p-4">
+                      <audio src={message.previewUrl} controls className="w-[22rem] max-w-[62vw]" />
+                    </div>
+                  ) : null}
+                  {message.status === "streaming" ? (
+                    <AttachmentProgressCircle progress={message.progress} />
+                  ) : null}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-200">
+                  <span className="truncate">{message.name}</span>
+                  <span>
+                    {message.status === "failed"
+                      ? "failed"
+                      : message.status === "done"
+                        ? "sent"
+                        : "sending"}
+                  </span>
+                </div>
+                {message.error ? (
+                  <p className="mt-1 text-[11px] text-red-300">{message.error}</p>
                 ) : null}
               </article>
             );

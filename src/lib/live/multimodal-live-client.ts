@@ -83,7 +83,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   constructor(options: LiveClientOptions) {
     super();
     this.client = new GoogleGenAI(options);
-    this.send = this.send.bind(this);
     this.onopen = this.onopen.bind(this);
     this.onerror = this.onerror.bind(this);
     this.onclose = this.onclose.bind(this);
@@ -335,16 +334,5 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       });
       this.log(`client.toolResponse`, toolResponse);
     }
-  }
-
-  /**
-   * send normal content parts such as { text }
-   */
-  send(parts: Part | Part[], turnComplete: boolean = true) {
-    this.session?.sendClientContent({ turns: parts, turnComplete });
-    this.log(`client.send`, {
-      turns: Array.isArray(parts) ? parts : [parts],
-      turnComplete,
-    });
   }
 }
