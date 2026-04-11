@@ -106,7 +106,6 @@ You are a voice-first document and financial assistant.
 - If screen sharing is unavailable, say: "Please turn on the screen."
 - Keep answers concise and accurate.
 - Do not hallucinate. Ask follow-up questions when needed.
-- Use function tools for data retrieval and actions.
 - Use render_altair for Vega/Altair chart payloads only.
 `,
           },
@@ -165,7 +164,8 @@ You are a voice-first document and financial assistant.
               location: "ChatScreen.tsx:onToolCall:fn(fc.args)",
             });
             const output = await fn(fc.args);
-            const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
+            const durationMs =
+              Math.round((performance.now() - startedAt) * 100) / 100;
 
             toolLog("info", "execute.success", {
               callId,
@@ -210,7 +210,8 @@ You are a voice-first document and financial assistant.
                   warnings: parsed.warnings,
                 });
               } else {
-                const firstIssue = parsed.issues[0] ?? "unknown validation issue";
+                const firstIssue =
+                  parsed.issues[0] ?? "unknown validation issue";
                 toolLog("error", "render_ui.validation.failed", {
                   callId,
                   toolName,
@@ -263,7 +264,8 @@ You are a voice-first document and financial assistant.
           } catch (error) {
             const message =
               error instanceof Error ? error.message : "Tool call failed.";
-            const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
+            const durationMs =
+              Math.round((performance.now() - startedAt) * 100) / 100;
             toolLog("error", "execute.error", {
               callId,
               toolName,
@@ -333,7 +335,9 @@ You are a voice-first document and financial assistant.
           if (message.kind === "text") {
             return (
               <article key={message.id} className={bubbleClass}>
-                <p className="whitespace-pre-wrap break-words">{message.text}</p>
+                <p className="whitespace-pre-wrap break-words">
+                  {message.text}
+                </p>
               </article>
             );
           }
@@ -367,8 +371,8 @@ You are a voice-first document and financial assistant.
                         <div className="space-y-2 text-xs text-amber-700">
                           <p>Renderer crashed for this spec. Fallback shown.</p>
                           <p>
-                            The markdown board still receives extracted cards when
-                            available.
+                            The markdown board still receives extracted cards
+                            when available.
                           </p>
                         </div>
                       }
@@ -387,7 +391,9 @@ You are a voice-first document and financial assistant.
                 {message.warnings.length ? (
                   <div className="mt-3 space-y-1 text-[11px] text-amber-700">
                     {message.warnings.map((warning) => (
-                      <p key={`${message.id}-warning-${warning}`}>! {warning}</p>
+                      <p key={`${message.id}-warning-${warning}`}>
+                        ! {warning}
+                      </p>
                     ))}
                   </div>
                 ) : null}
@@ -419,7 +425,11 @@ You are a voice-first document and financial assistant.
                   ) : null}
                   {message.mediaType === "audio" ? (
                     <div className="flex min-h-24 items-center justify-center p-4">
-                      <audio src={message.previewUrl} controls className="w-[22rem] max-w-[62vw]" />
+                      <audio
+                        src={message.previewUrl}
+                        controls
+                        className="w-[22rem] max-w-[62vw]"
+                      />
                     </div>
                   ) : null}
                   {message.status === "streaming" ? (
@@ -437,7 +447,9 @@ You are a voice-first document and financial assistant.
                   </span>
                 </div>
                 {message.error ? (
-                  <p className="mt-1 text-[11px] text-red-300">{message.error}</p>
+                  <p className="mt-1 text-[11px] text-red-300">
+                    {message.error}
+                  </p>
                 ) : null}
               </article>
             );

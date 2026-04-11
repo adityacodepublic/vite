@@ -42,6 +42,24 @@ type GetUpdatesResponse =
       error: string;
     };
 
+type CaptureSnapshotRequest = {
+  maxBytes?: number;
+};
+
+export type CaptureSnapshotResponse =
+  | {
+      success: true;
+      mimeType: string;
+      data: string;
+      width: number;
+      height: number;
+      timestamp: string;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
 export async function startSession(
   prompt: string,
   sessionId?: string,
@@ -76,6 +94,20 @@ export async function getSessionUpdates(
   const response = await fetch(
     `${SESSION_API_BASE}/session/${sessionId}/updates`,
   );
+  return response.json();
+}
+
+export async function captureNativeScreenSnapshot(
+  maxBytes: number = 2_000_000,
+): Promise<CaptureSnapshotResponse> {
+  const response = await fetch(`${SESSION_API_BASE}/capture/snapshot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      maxBytes,
+    } satisfies CaptureSnapshotRequest),
+  });
+
   return response.json();
 }
 

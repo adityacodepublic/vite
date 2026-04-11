@@ -1,7 +1,9 @@
 import cn from "classnames";
 import { useEffect, useRef, useState } from "react";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
-import ControlTray from "./components/control-tray/ControlTray";
+import ControlTray, {
+  type ControlTrayHandle,
+} from "./components/control-tray/ControlTray";
 import { LiveClientOptions } from "./lib/live/types";
 import { ChatScreen } from "./components/chat/ChatScreen";
 import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
@@ -33,7 +35,10 @@ function App() {
   ) as React.RefObject<HTMLVideoElement>;
   // either the screen capture, the video or null, if null we hide it
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [isSnapshotGlowActive, setIsSnapshotGlowActive] = useState(false);
   const horizontalPaneRef = useRef<HTMLDivElement>(null);
+  const controlTrayRef = useRef<ControlTrayHandle | null>(null);
+  const snapshotGlowTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const container = horizontalPaneRef.current;
@@ -56,10 +61,39 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (snapshotGlowTimeoutRef.current !== null) {
+        window.clearTimeout(snapshotGlowTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const triggerSnapshotGlow = () => {
+    if (snapshotGlowTimeoutRef.current !== null) {
+      window.clearTimeout(snapshotGlowTimeoutRef.current);
+    }
+
+    setIsSnapshotGlowActive(false);
+    window.requestAnimationFrame(() => {
+      setIsSnapshotGlowActive(true);
+      snapshotGlowTimeoutRef.current = window.setTimeout(() => {
+        setIsSnapshotGlowActive(false);
+        snapshotGlowTimeoutRef.current = null;
+      }, 1000);
+    });
+  };
+
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
         <div className="relative h-screen w-full overflow-hidden bg-[#e0ecf46d] ">
+          <div
+            aria-hidden="true"
+            className={cn("snapshot-glow-overlay", {
+              "snapshot-glow-overlay--active": isSnapshotGlowActive,
+            })}
+          />
           {/* <SidePanel /> */}
           <div
             ref={horizontalPaneRef}
@@ -83,7 +117,10 @@ function App() {
                 </div>
               </section>
 
-              <MarkdownBoardPanel />
+              <MarkdownBoardPanel
+                videoStream={videoStream}
+                controlTrayRef={controlTrayRef}
+              />
             </div>
           </div>
 
@@ -92,9 +129,11 @@ function App() {
           </div>
 
           <ControlTray
+            ref={controlTrayRef}
             videoRef={videoRef}
             supportsVideo={true}
             onVideoStreamChange={setVideoStream}
+            onSnapshotGlow={triggerSnapshotGlow}
           />
         </div>
       </LiveAPIProvider>

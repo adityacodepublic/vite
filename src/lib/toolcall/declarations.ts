@@ -13,6 +13,8 @@ import {
   extractAvailableComponentsBlock,
 } from "@/lib/json-render/chat-catalog";
 import { parseRenderSpec } from "@/lib/json-render/chat-renderer";
+import { useChatStore } from "@/lib/chat/store";
+import { invokeSnapshotHandler } from "@/lib/toolcall/snapshot-runtime";
 
 const RENDER_UI_COMPONENTS_DOC =
   extractAvailableComponentsBlock(chatCatalog.prompt()) ||
@@ -112,6 +114,43 @@ const coreFunctionsMap: Record<string, any> = {
   sendToUser: (args: { text: string }) => {
     console.log("[sendToUser]", args.text);
     return { delivered: true, text: args.text };
+  },
+  read_camera_markdown: () => {
+    const state = useChatStore.getState().cameraMarkdown;
+    return {
+      title: state.title,
+      markdown: state.markdown,
+      isOpen: state.isOpen,
+      charCount: state.markdown.length,
+    };
+  },
+  write_camera_markdown: (args: {
+    markdown: string;
+    mode?: "replace" | "append";
+  }) => {
+    const mode = args.mode === "append" ? "append" : "replace";
+    const store = useChatStore.getState();
+    const previous = store.cameraMarkdown.markdown;
+    const nextMarkdown =
+      mode === "append"
+        ? `${previous}${previous && args.markdown ? "\n\n" : ""}${args.markdown}`
+        : args.markdown;
+
+    store.updateCameraMarkdown(nextMarkdown);
+
+    return {
+      updated: true,
+      mode,
+      previousCharCount: previous.length,
+      nextCharCount: nextMarkdown.length,
+    };
+  },
+  capture_snapshot: async (args: { source: "screen" | "camera" }) => {
+    if (args?.source !== "screen" && args?.source !== "camera") {
+      throw new Error("capture_snapshot requires source 'screen' or 'camera'.");
+    }
+
+    return invokeSnapshotHandler({ source: args.source });
   },
 };
 
@@ -226,6 +265,55 @@ const coreDeclarations: FunctionDeclaration[] = [
         },
       },
       required: ["text"],
+    },
+  },
+  {
+    name: "read_camera_markdown",
+    description:
+      "Read the current contents of the persistent camera markdown document. Use this before edits so you can revise existing content accurately.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "write_camera_markdown",
+    description:
+      "For camera-to-markdown workflows, read existing document content with read_camera_markdown before edits, then update it with write_camera_markdown. Prefer append so existing content is preserved, and do not remove or replace pre-existing content unless the user explicitly asks for that. Read the current document first when revising existing notes.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        markdown: {
+          type: Type.STRING,
+          description:
+            "Markdown content to write into the camera markdown document.",
+        },
+        mode: {
+          type: Type.STRING,
+          description:
+            "Write mode. Use 'replace' to overwrite the entire current content, or 'append' to add to the end.",
+          enum: ["replace", "append"],
+        },
+      },
+      required: ["markdown"],
+    },
+  },
+  {
+    name: "capture_snapshot",
+    description:
+      "Capture a high-quality snapshot of screen or camera feed. Use source 'screen' for a native desktop screenshot, or source 'camera' for capture from the camera feed.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        source: {
+          type: Type.STRING,
+          description:
+            "Capture source. Use 'screen' for a native desktop screenshot, or 'camera' for a webcam still image.",
+          enum: ["screen", "camera"],
+        },
+      },
+      required: ["source"],
     },
   },
 ];

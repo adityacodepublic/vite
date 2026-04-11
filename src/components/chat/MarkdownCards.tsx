@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { useMemo, useState } from "react";
@@ -52,10 +54,10 @@ export function MarkdownCards({ title, cards }: MarkdownCardsProps) {
           >
             <p className="line-clamp-2 text-sm font-semibold text-zinc-900">{card.title}</p>
             <div className="relative mt-1 max-h-24 overflow-hidden [mask-image:linear-gradient(to_bottom,black_78%,transparent_100%)]">
-              <article className="markdown-content text-xs leading-5 text-zinc-600">
+              <article className="markdown-content markdown-content--compact text-xs leading-5 text-zinc-600">
                 <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
+                  remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
+                  rehypePlugins={[rehypeKatex, rehypeHighlight]}
                 >
                   {card.markdown}
                 </ReactMarkdown>
@@ -95,8 +97,8 @@ export function MarkdownCards({ title, cards }: MarkdownCardsProps) {
               <div className="max-h-[calc(80vh-62px)] overflow-y-auto px-4 py-3">
                 <article className="markdown-content text-sm leading-6 text-zinc-800">
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
+                    remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
+                    rehypePlugins={[rehypeKatex, rehypeHighlight]}
                   >
                     {activeCard.markdown}
                   </ReactMarkdown>
