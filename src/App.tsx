@@ -124,7 +124,7 @@ function App() {
             </div>
           </div>
 
-          <div className="pointer-events-none fixed right-4 top-4 z-30 rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm">
+          <div className="invisible md:visible lg:visible pointer-events-none fixed right-4 top-4 z-30 rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm">
             Shift + Scroll to open board
           </div>
 
