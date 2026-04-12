@@ -18,13 +18,33 @@ import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
 // const host = "generativelanguage.googleapis.com";
 // const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
-if (typeof API_KEY !== "string") {
-  throw new Error("set VITE_GEMINI_APIK_KEY in .env");
-}
+const TOKEN_SERVER_URL =
+  (import.meta.env.VITE_GEMINI_TOKEN_SERVER_URL as string | undefined) ??
+  "https://gemini-live-token-server.simpelskiff.workers.dev/token";
 
 const apiOptions: LiveClientOptions = {
-  apiKey: API_KEY,
+  getEphemeralToken: async () => {
+    const response = await fetch(TOKEN_SERVER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gemini-3.1-flash-live-preview",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ephemeral token (${response.status})`);
+    }
+
+    const body = (await response.json()) as { token?: string };
+    if (!body.token) {
+      throw new Error("Token endpoint returned no token");
+    }
+
+    return body.token;
+  },
 };
 
 function App() {

@@ -58,6 +58,7 @@ export interface LiveClientEventTypes {
  */
 export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   protected client: GoogleGenAI;
+  private options: LiveClientOptions;
 
   private _status: "connected" | "disconnected" | "connecting" = "disconnected";
   public get status() {
@@ -82,11 +83,28 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
   constructor(options: LiveClientOptions) {
     super();
-    this.client = new GoogleGenAI(options);
+    this.options = options;
+    this.client = new GoogleGenAI({ ...options, apiKey: options.apiKey ?? "" });
     this.onopen = this.onopen.bind(this);
     this.onerror = this.onerror.bind(this);
     this.onclose = this.onclose.bind(this);
     this.onmessage = this.onmessage.bind(this);
+  }
+
+  private async resolveApiKey(): Promise<string> {
+    if (typeof this.options.getEphemeralToken === "function") {
+      const token = await this.options.getEphemeralToken();
+      if (!token) {
+        throw new Error("Token endpoint returned an empty token");
+      }
+      return token;
+    }
+
+    if (this.options.apiKey) {
+      return this.options.apiKey;
+    }
+
+    throw new Error("No API key or ephemeral token provider configured");
   }
 
   protected log(type: string, message: StreamingLog["message"]) {
@@ -117,6 +135,9 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this._status = "connecting";
     this.config = config;
     this._model = normalizedModel;
+
+    const apiKey = await this.resolveApiKey();
+    this.client = new GoogleGenAI({ ...this.options, apiKey });
 
     const callbacks: LiveCallbacks = {
       onopen: this.onopen,
