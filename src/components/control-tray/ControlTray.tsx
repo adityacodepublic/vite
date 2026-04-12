@@ -52,7 +52,6 @@ import {
   streamImageFile,
   streamVideoFile,
 } from "@/lib/live/realtime-file-streamer";
-import { captureNativeScreenSnapshot } from "@/lib/toolcall/functions";
 import {
   clearSnapshotHandler,
   registerSnapshotHandler,
@@ -76,7 +75,6 @@ export type ControlTrayHandle = {
 };
 
 const CAMERA_SNAPSHOT_MAX_LONG_EDGE = 1600;
-const SCREEN_SNAPSHOT_MAX_BYTES = 2_000_000;
 
 type MediaStreamButtonProps = {
   isStreaming: boolean;
@@ -366,6 +364,152 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       onSnapshotGlow,
     ]);
 
+    const waitForStreamFrame = useCallback(async (stream: MediaStream) => {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error("Screen stream frame is not ready yet."));
+          }, 4000);
+
+          const cleanup = () => {
+            window.clearTimeout(timeoutId);
+            video.removeEventListener("loadedmetadata", onLoadedMetadata);
+            video.removeEventListener("error", onError);
+          };
+
+          const onLoadedMetadata = () => {
+            cleanup();
+            resolve();
+          };
+
+          const onError = () => {
+            cleanup();
+            reject(new Error("Unable to read screen stream metadata."));
+          };
+
+          video.addEventListener("loadedmetadata", onLoadedMetadata, {
+            once: true,
+          });
+          video.addEventListener("error", onError, { once: true });
+        });
+
+        try {
+          await video.play();
+        } catch {
+          // Some browsers block autoplay; frame dimensions can still be available.
+        }
+
+        const startedAt = performance.now();
+        while (performance.now() - startedAt < 4000) {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            return video;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+        }
+
+        throw new Error("Screen frame is not ready yet. Please try again.");
+      } catch (error) {
+        video.srcObject = null;
+        throw error;
+      }
+    }, []);
+
+    const captureScreenSnapshot = useCallback(async () => {
+      const wasConnected = connected;
+      if (!wasConnected) {
+        const didConnect = await connectVoiceMode();
+        if (!didConnect) {
+          throw new Error(
+            "Could not connect voice mode for screen capture. Please try again.",
+          );
+        }
+      }
+
+      let stream =
+        screenCapture.isStreaming &&
+        screenCapture.stream &&
+        screenCapture.stream.active
+          ? screenCapture.stream
+          : null;
+      let startedStreamForCapture = false;
+
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+          });
+          startedStreamForCapture = true;
+        } catch {
+          throw new Error(
+            "Screen capture permission was denied or unavailable. Please allow screen sharing and try again.",
+          );
+        }
+      }
+
+      snapshotCaptureInFlightRef.current = true;
+
+      try {
+        const video = await waitForStreamFrame(stream);
+        const canvas = renderCanvasRef.current;
+
+        if (!canvas) {
+          throw new Error("Snapshot canvas is unavailable.");
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Snapshot canvas context is unavailable.");
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/png");
+        const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
+        const timestamp = new Date().toISOString();
+
+        client.sendRealtimeInput([{ mimeType: "image/png", data }]);
+        logSnapshotSend({
+          source: "screen",
+          mimeType: "image/png",
+          width: canvas.width,
+          height: canvas.height,
+          base64: data,
+        });
+        onSnapshotGlow?.();
+
+        return {
+          source: "screen" as const,
+          mimeType: "image/png",
+          width: canvas.width,
+          height: canvas.height,
+          timestamp,
+          startedStreamForCapture,
+        };
+      } finally {
+        snapshotCaptureInFlightRef.current = false;
+        if (startedStreamForCapture && stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+      }
+    }, [
+      client,
+      connected,
+      connectVoiceMode,
+      logSnapshotSend,
+      onSnapshotGlow,
+      screenCapture.isStreaming,
+      screenCapture.stream,
+      waitForStreamFrame,
+    ]);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -389,39 +533,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
     useEffect(() => {
       registerSnapshotHandler(async ({ source }) => {
         if (source === "screen") {
-          const result = await captureNativeScreenSnapshot(
-            SCREEN_SNAPSHOT_MAX_BYTES,
-          );
-          if (!result.success) {
-            throw new Error(
-              result.error ||
-                "Could not capture a screen snapshot. Make sure desktop capture is available.",
-            );
-          }
-
-          client.sendRealtimeInput([
-            {
-              mimeType: result.mimeType,
-              data: result.data,
-            },
-          ]);
-          logSnapshotSend({
-            source: "screen",
-            mimeType: result.mimeType,
-            width: result.width,
-            height: result.height,
-            base64: result.data,
-          });
-          onSnapshotGlow?.();
-
-          return {
-            source,
-            mimeType: result.mimeType,
-            width: result.width,
-            height: result.height,
-            timestamp: result.timestamp,
-            startedStreamForCapture: false,
-          };
+          return captureScreenSnapshot();
         }
 
         return captureCameraSnapshot();
@@ -430,7 +542,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       return () => {
         clearSnapshotHandler();
       };
-    }, [captureCameraSnapshot, client, logSnapshotSend, onSnapshotGlow]);
+    }, [captureCameraSnapshot, captureScreenSnapshot]);
 
     const existingAttachmentFiles = attachments.map((item) => item.file);
 

@@ -1,10 +1,5 @@
 import { type FunctionDeclaration, Type } from "@google/genai";
 import {
-  startSession,
-  listSessions,
-  getSessionUpdates,
-} from "@/lib/toolcall/functions";
-import {
   bankingDeclarations,
   bankingFunctionsMap,
 } from "@/lib/toolcall/banking/declarations";
@@ -64,20 +59,6 @@ function parseRenderUiInput(specJson: string): unknown {
 }
 
 const coreFunctionsMap: Record<string, any> = {
-  startSession: (args: {
-    prompt: string;
-    sessionId?: string;
-    model?: string;
-    clientId?: string;
-  }) => {
-    return startSession(args.prompt, args.sessionId, args.model, args.clientId);
-  },
-  listSessions: (args: { numberOfDaysBefore?: number }) => {
-    return listSessions(args?.numberOfDaysBefore ?? 0);
-  },
-  getSessionUpdates: (args: { sessionId: string }) => {
-    return getSessionUpdates(args.sessionId);
-  },
   render_altair: (args: { json_graph: string }) => {
     return args.json_graph;
   },
@@ -161,69 +142,6 @@ export const functionsmap: Record<string, any> = {
 
 const coreDeclarations: FunctionDeclaration[] = [
   {
-    name: "startSession",
-    description:
-      "You have a core agent (your) to help you. Handover Browser, files related tasks and any complex tasks you can't do to your core agent. Use this when a new user goal arrives and you don't have tools to do it or when you need the core agent to continue an existing work thread ( find existing sessions with listSessions ). Provide a clear, self-contained prompt describing the task to execute. If continuing prior work, include sessionId. Optionally set model when routing requires a specific model. github-copilot/gemini-3-flash-preview (good for browsing), github-copilot/gpt-5.3-codex in most cases no need to set model, the core agent will route to the best model.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        prompt: {
-          type: Type.STRING,
-          description:
-            "Instruction payload for the core agent. Include task intent, constraints, expected output, and any relevant context.",
-        },
-        sessionId: {
-          type: Type.STRING,
-          description:
-            "Existing session ID to continue the same core-agent workflow instead of creating a new session.",
-        },
-        model: {
-          type: Type.STRING,
-          description:
-            "Optional model name for routing (for example, when quality/speed/cost requirements require a specific model).",
-        },
-        clientId: {
-          type: Type.STRING,
-          description:
-            "Whenever User whenever user tells give the task to coworker. first use listSessions to get onlineFollowerId which is not 'your' and use that id as clientId to startsession. Its optional if no onlineFollowerId is present.",
-        },
-      },
-      required: ["prompt"],
-    },
-  },
-  {
-    name: "listSessions",
-    description:
-      "List agent sessions grouped by worker node with optional history window. Response shape is { your: Session[], <onlineFollowerName>: Session[] }. Only active online followers are included.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        numberOfDaysBefore: {
-          type: Type.NUMBER,
-          description:
-            "Optional day window before today (0-5). 0 means today only, 1 means today + yesterday, up to max 5 days before.",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "getSessionUpdates",
-    description:
-      "Fetch latest progress/content from a specific core-agent session. Use this after startSession or when polling a running task to get incremental updates and final output.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        sessionId: {
-          type: Type.STRING,
-          description:
-            "Target session ID whose latest state and content should be retrieved.",
-        },
-      },
-      required: ["sessionId"],
-    },
-  },
-  {
     name: "render_altair",
     description: "Displays an altair graph in json format.",
     parameters: {
@@ -247,7 +165,7 @@ const coreDeclarations: FunctionDeclaration[] = [
         spec_json: {
           type: Type.STRING,
           description:
-            'JSON string for UI spec. Recommended form: {"spec":{"root":{"type":"MarkdownCards","props":{"cards":[{"title":"Topic","markdown":"## Notes"}]}}}}. You may also send {"root":{...}} directly.',
+            'JSON string for UI spec. Recommended form: {"spec":{"root":{"type":"MarkdownCards","props":{"cards":[{"title":"Topic","markdown":"## Notes"}]}}}}. You may also send {"root":{...}} directly. \n If a component fails to render then, understand the error, fix the issue and try again. Repeat up to 5-6 attempts with different fixes if needed, Only report failure if all attempts fail, and include the likely cause.',
         },
       },
       required: ["spec_json"],
@@ -302,7 +220,7 @@ const coreDeclarations: FunctionDeclaration[] = [
   {
     name: "capture_snapshot",
     description:
-      "Capture a high-quality snapshot of screen or camera feed. Use source 'screen' for a native desktop screenshot, or source 'camera' for capture from the camera feed.",
+      "Capture a high-quality snapshot of screen or camera feed and get its image. Use source 'screen' for a native desktop screenshot, or source 'camera' for capture from the camera feed. Wait for the image to be recieved by you (as it can take a few seconds to reach you) before responding.",
     parameters: {
       type: Type.OBJECT,
       properties: {
