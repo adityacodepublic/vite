@@ -34,60 +34,112 @@ async function getEphemeralToken() {
 
 async function main() {
   console.log(`[token] endpoint: ${TOKEN_ENDPOINT}`);
-  const token = await getEphemeralToken();
-  console.log(`[token] received ephemeral token: ${token.slice(0, 16)}...`);
+  const token1 = await getEphemeralToken();
+  console.log(`[token] initial token: ${token1.slice(0, 16)}...`);
 
-  let setupComplete = false;
-  let openReceived = false;
+  let setupComplete1 = false;
+  let resumableHandle: string | null = null;
 
-  const ai = new GoogleGenAI({
-    apiKey: token,
-    apiVersion: "v1alpha",
-  });
-
-  const session = await ai.live.connect({
+  const ai1 = new GoogleGenAI({ apiKey: token1, apiVersion: "v1alpha" });
+  const session1 = await ai1.live.connect({
     model: MODEL,
     config: {
-      responseModalities: [Modality.AUDIO],
+      responseModalities: [Modality.TEXT],
       sessionResumption: {},
     },
     callbacks: {
       onopen: () => {
-        openReceived = true;
-        console.log("[live] websocket open");
+        console.log("[live-1] websocket open");
       },
       onmessage: (message) => {
         if (message.setupComplete) {
-          setupComplete = true;
-          console.log("[live] setup complete");
+          setupComplete1 = true;
+          console.log("[live-1] setup complete");
+        }
+
+        const update = message.sessionResumptionUpdate;
+        if (update?.resumable && update.newHandle) {
+          resumableHandle = update.newHandle;
+          console.log("[live-1] resumable handle received");
         }
       },
       onerror: (event) => {
-        console.error("[live] error event", event.message || event);
+        console.error("[live-1] error", event.message || event);
       },
       onclose: (event) => {
         console.log(
-          `[live] closed code=${event.code} clean=${event.wasClean} reason=${event.reason || ""}`,
+          `[live-1] closed code=${event.code} clean=${event.wasClean} reason=${event.reason || ""}`,
         );
       },
     },
   });
 
-  const started = Date.now();
-  while (!setupComplete && Date.now() - started < 7000) {
+  session1.sendRealtimeInput({ text: "Say only: ready" });
+
+  const started1 = Date.now();
+  while (
+    (!setupComplete1 || !resumableHandle) &&
+    Date.now() - started1 < 12000
+  ) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  session.close();
-
-  if (!openReceived) {
-    throw new Error("Live API websocket did not open");
+  if (!setupComplete1) {
+    throw new Error("Initial connection did not send setupComplete");
   }
-  if (!setupComplete) {
-    throw new Error("Live API did not send setupComplete within timeout");
+  if (!resumableHandle) {
+    throw new Error("No resumable handle received from initial session");
   }
 
-  console.log("[ok] Live API ephemeral token flow works");
+  session1.close();
+
+  const token2 = await getEphemeralToken();
+  console.log(`[token] refresh token: ${token2.slice(0, 16)}...`);
+
+  let setupComplete2 = false;
+
+  const ai2 = new GoogleGenAI({ apiKey: token2, apiVersion: "v1alpha" });
+  const session2 = await ai2.live.connect({
+    model: MODEL,
+    config: {
+      responseModalities: [Modality.TEXT],
+      sessionResumption: {
+        handle: resumableHandle,
+      },
+    },
+    callbacks: {
+      onopen: () => {
+        console.log("[live-2] websocket open");
+      },
+      onmessage: (message) => {
+        if (message.setupComplete) {
+          setupComplete2 = true;
+          console.log("[live-2] setup complete (resumed)");
+        }
+
+      },
+      onerror: (event) => {
+        console.error("[live-2] error", event.message || event);
+      },
+      onclose: (event) => {
+        console.log(
+          `[live-2] closed code=${event.code} clean=${event.wasClean} reason=${event.reason || ""}`,
+        );
+      },
+    },
+  });
+
+  const started2 = Date.now();
+  while (!setupComplete2 && Date.now() - started2 < 12000) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  session2.close();
+
+  if (!setupComplete2) {
+    throw new Error("Resumed connection did not send setupComplete");
+  }
+  console.log("[ok] Live API token refresh + session resumption works");
 }
 
 main().catch((error) => {

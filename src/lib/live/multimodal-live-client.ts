@@ -15,8 +15,17 @@ import {
 
 import { EventEmitter } from "eventemitter3";
 import { difference } from "lodash";
-import { LiveClientOptions, StreamingLog } from "./types";
+import {
+  EphemeralTokenResponse,
+  LiveClientOptions,
+  StreamingLog,
+} from "./types";
 import { base64ToArrayBuffer } from "./chat-utils";
+
+const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
+const TOKEN_REFRESH_FALLBACK_MS = 25 * 60 * 1000;
+const RECONNECT_BACKOFF_MAX_MS = 15_000;
+const GO_AWAY_RECONNECT_BUFFER_MS = 1000;
 
 /**
  * Event types that can be emitted by the MultimodalLiveClient.
@@ -59,6 +68,19 @@ export interface LiveClientEventTypes {
 export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   protected client: GoogleGenAI;
   private options: LiveClientOptions;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private manualDisconnect = false;
+  private reconnectAttempts = 0;
+  private reconnecting = false;
+  private suppressCloseRecovery = false;
+  private lastResumptionHandle: string | null = null;
+  private lastResumable = false;
+  private lastTokenMetadata: {
+    expireAtMs?: number;
+    newSessionExpireAtMs?: number;
+  } | null = null;
+  private lastConnectConfig: LiveConnectConfig | null = null;
 
   private _status: "connected" | "disconnected" | "connecting" = "disconnected";
   public get status() {
@@ -92,7 +114,8 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   }
 
   private createClient(apiKey: string): GoogleGenAI {
-    const { getEphemeralToken: _unused, ...baseOptions } = this.options;
+    const { getEphemeralToken, ...baseOptions } = this.options;
+    void getEphemeralToken;
     return new GoogleGenAI({
       ...baseOptions,
       apiKey,
@@ -100,9 +123,126 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     });
   }
 
+  private clearTimers() {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private parseDurationMs(duration?: string): number | null {
+    if (!duration) {
+      return null;
+    }
+    const match = duration.match(/^(-?\d+(?:\.\d+)?)s$/);
+    if (!match) {
+      return null;
+    }
+    const seconds = Number(match[1]);
+    if (!Number.isFinite(seconds)) {
+      return null;
+    }
+    return Math.max(0, Math.floor(seconds * 1000));
+  }
+
+  private scheduleTokenRefresh() {
+    if (this.manualDisconnect) {
+      return;
+    }
+
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+
+    const expireAtMs = this.lastTokenMetadata?.expireAtMs;
+    const now = Date.now();
+    let delayMs = TOKEN_REFRESH_FALLBACK_MS;
+
+    if (expireAtMs) {
+      delayMs = Math.max(30_000, expireAtMs - TOKEN_REFRESH_BUFFER_MS - now);
+    }
+
+    this.refreshTimer = setTimeout(() => {
+      void this.reconnectWithResumption("token-refresh");
+    }, delayMs);
+
+    this.log(
+      "client.tokenRefreshScheduled",
+      `next refresh in ${Math.round(delayMs / 1000)}s`,
+    );
+  }
+
+  private scheduleReconnect(reason: string) {
+    if (this.manualDisconnect || this.reconnecting) {
+      return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    const delay = Math.min(
+      1000 * Math.pow(2, this.reconnectAttempts),
+      RECONNECT_BACKOFF_MAX_MS,
+    );
+    this.reconnectAttempts += 1;
+
+    this.log("client.reconnectScheduled", `${reason} retry in ${delay}ms`);
+
+    this.reconnectTimer = setTimeout(() => {
+      void this.reconnectWithResumption("auto-reconnect");
+    }, delay);
+  }
+
+  private scheduleReconnectSoon(delayMs: number, reason: string) {
+    if (this.manualDisconnect || this.reconnecting) {
+      return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    const safeDelay = Math.max(0, delayMs);
+    this.log("client.reconnectScheduled", `${reason} retry in ${safeDelay}ms`);
+    this.reconnectTimer = setTimeout(() => {
+      void this.reconnectWithResumption(reason);
+    }, safeDelay);
+  }
+
+  private parseTokenResult(tokenResult: string | EphemeralTokenResponse): {
+    token: string;
+    metadata: { expireAtMs?: number; newSessionExpireAtMs?: number };
+  } {
+    if (typeof tokenResult === "string") {
+      return { token: tokenResult, metadata: {} };
+    }
+
+    return {
+      token: tokenResult.token,
+      metadata: {
+        expireAtMs: tokenResult.expireTime
+          ? new Date(tokenResult.expireTime).getTime()
+          : undefined,
+        newSessionExpireAtMs: tokenResult.newSessionExpireTime
+          ? new Date(tokenResult.newSessionExpireTime).getTime()
+          : undefined,
+      },
+    };
+  }
+
   private async resolveApiKey(): Promise<string> {
     if (typeof this.options.getEphemeralToken === "function") {
-      const token = await this.options.getEphemeralToken();
+      const tokenResult = await this.options.getEphemeralToken();
+      const { token, metadata } = this.parseTokenResult(tokenResult);
+      this.lastTokenMetadata = metadata;
       if (!token) {
         throw new Error("Token endpoint returned an empty token");
       }
@@ -141,8 +281,11 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
     const normalizedModel = model.replace(/^models\//, "");
 
+    this.manualDisconnect = false;
+    this.clearTimers();
     this._status = "connecting";
     this.config = config;
+    this.lastConnectConfig = { ...config };
     this._model = normalizedModel;
 
     try {
@@ -174,10 +317,138 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     }
 
     this._status = "connected";
+    this.reconnectAttempts = 0;
+    this.scheduleTokenRefresh();
     return true;
   }
 
+  private buildResumeConfig(): LiveConnectConfig | null {
+    if (!this.lastConnectConfig) {
+      return null;
+    }
+
+    if (!this.lastResumable || !this.lastResumptionHandle) {
+      return {
+        ...this.lastConnectConfig,
+        sessionResumption: {
+          ...(this.lastConnectConfig.sessionResumption ?? {}),
+        },
+      };
+    }
+
+    return {
+      ...this.lastConnectConfig,
+      sessionResumption: {
+        ...(this.lastConnectConfig.sessionResumption ?? {}),
+        handle: this.lastResumptionHandle,
+      },
+    };
+  }
+
+  private buildFreshConfig(): LiveConnectConfig | null {
+    if (!this.lastConnectConfig) {
+      return null;
+    }
+    return {
+      ...this.lastConnectConfig,
+      sessionResumption: {
+        ...(this.lastConnectConfig.sessionResumption ?? {}),
+      },
+    };
+  }
+
+  private async reconnectWithResumption(reason: string): Promise<boolean> {
+    if (this.reconnecting || this.manualDisconnect) {
+      return false;
+    }
+
+    if (!this._model || !this.lastConnectConfig) {
+      return false;
+    }
+
+    const resumeConfig = this.buildResumeConfig();
+    if (!resumeConfig) {
+      return false;
+    }
+
+    this.reconnecting = true;
+    this._status = "connecting";
+    this.clearTimers();
+    this.log("client.reconnect", reason);
+
+    try {
+      const apiKey = await this.resolveApiKey();
+      this.client = this.createClient(apiKey);
+
+      this.suppressCloseRecovery = true;
+      this._session?.close();
+      this._session = null;
+
+      const callbacks: LiveCallbacks = {
+        onopen: this.onopen,
+        onmessage: this.onmessage,
+        onerror: this.onerror,
+        onclose: this.onclose,
+      };
+
+      this._session = await this.client.live.connect({
+        model: this._model,
+        config: resumeConfig,
+        callbacks,
+      });
+
+      this.config = resumeConfig;
+      this.lastConnectConfig = { ...resumeConfig };
+      this._status = "connected";
+      this.reconnectAttempts = 0;
+      this.scheduleTokenRefresh();
+      return true;
+    } catch (error) {
+      const attemptedResume = Boolean(resumeConfig.sessionResumption?.handle);
+
+      if (attemptedResume) {
+        this.log("client.resumeFallback", "resume failed, retrying fresh");
+        this.lastResumable = false;
+        this.lastResumptionHandle = null;
+
+        const freshConfig = this.buildFreshConfig();
+        if (freshConfig) {
+          try {
+            this._session = await this.client.live.connect({
+              model: this._model,
+              config: freshConfig,
+              callbacks,
+            });
+
+            this.config = freshConfig;
+            this.lastConnectConfig = { ...freshConfig };
+            this._status = "connected";
+            this.reconnectAttempts = 0;
+            this.scheduleTokenRefresh();
+            return true;
+          } catch (fallbackError) {
+            console.error(
+              "Error reconnecting to GenAI Live with fresh session:",
+              fallbackError,
+            );
+          }
+        }
+      }
+
+      this._status = "disconnected";
+      this._session = null;
+      this.scheduleReconnect("reconnect-failed");
+      console.error("Error reconnecting to GenAI Live:", error);
+      return false;
+    } finally {
+      this.reconnecting = false;
+    }
+  }
+
   public disconnect() {
+    this.manualDisconnect = true;
+    this.clearTimers();
+
     if (!this.session) {
       return false;
     }
@@ -221,6 +492,15 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       });
     }
     this.emit("close", e);
+
+    if (this.suppressCloseRecovery) {
+      this.suppressCloseRecovery = false;
+      return;
+    }
+
+    if (!this.manualDisconnect) {
+      this.scheduleReconnect(`close:${e.code}`);
+    }
   }
 
   protected async onmessage(message: LiveServerMessage) {
@@ -246,11 +526,25 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
     if (message.goAway) {
       this.log("server.goAway", message);
+      const timeLeftMs = this.parseDurationMs(message.goAway.timeLeft);
+      if (timeLeftMs !== null) {
+        this.scheduleReconnectSoon(
+          Math.max(0, timeLeftMs - GO_AWAY_RECONNECT_BUFFER_MS),
+          "goaway",
+        );
+      } else {
+        this.scheduleReconnectSoon(0, "goaway");
+      }
       handled = true;
     }
 
     if (message.sessionResumptionUpdate) {
       this.log("server.sessionResumptionUpdate", "update");
+      const { resumable, newHandle } = message.sessionResumptionUpdate;
+      if (resumable && newHandle) {
+        this.lastResumptionHandle = newHandle;
+      }
+      this.lastResumable = Boolean(resumable);
       this.emit("sessionresumptionupdate", message.sessionResumptionUpdate);
       handled = true;
     }

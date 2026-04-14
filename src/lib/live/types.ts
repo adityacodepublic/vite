@@ -7,7 +7,13 @@ import {
 
 export type LiveClientOptions = GoogleGenAIOptions & {
   apiKey?: string;
-  getEphemeralToken?: () => Promise<string>;
+  getEphemeralToken?: () => Promise<string | EphemeralTokenResponse>;
+};
+
+export type EphemeralTokenResponse = {
+  token: string;
+  expireTime?: string;
+  newSessionExpireTime?: string;
 };
 
 /** log types */

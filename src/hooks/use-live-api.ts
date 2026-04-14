@@ -39,6 +39,9 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   const buildConnectConfig = useCallback(
     (resumeHandle?: string | null): LiveConnectConfig => ({
       ...config,
+      contextWindowCompression: config.contextWindowCompression ?? {
+        slidingWindow: {},
+      },
       sessionResumption: {
         ...(config.sessionResumption ?? {}),
         ...(resumeHandle ? { handle: resumeHandle } : {}),

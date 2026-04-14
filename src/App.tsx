@@ -42,12 +42,20 @@ const apiOptions: LiveClientOptions = {
       );
     }
 
-    const body = (await response.json()) as { token?: string };
+    const body = (await response.json()) as {
+      token?: string;
+      expireTime?: string;
+      newSessionExpireTime?: string;
+    };
     if (!body.token) {
       throw new Error("Token endpoint returned no token");
     }
 
-    return body.token;
+    return {
+      token: body.token,
+      expireTime: body.expireTime,
+      newSessionExpireTime: body.newSessionExpireTime,
+    };
   },
 };
 
