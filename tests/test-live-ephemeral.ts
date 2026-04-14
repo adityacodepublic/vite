@@ -5,6 +5,7 @@ const TOKEN_ENDPOINT =
   "https://gemini-live-token-server.simpelskiff.workers.dev/token";
 const ALLOWED_ORIGIN =
   process.env.TOKEN_REQUEST_ORIGIN ?? "https://modal2-pi.vercel.app";
+const TOKEN_BYPASS_KEY = process.env.VITE_GEMINI_TOKEN_BYPASS_KEY;
 const MODEL = "gemini-3.1-flash-live-preview";
 
 async function getEphemeralToken() {
@@ -13,6 +14,7 @@ async function getEphemeralToken() {
     headers: {
       "Content-Type": "application/json",
       Origin: ALLOWED_ORIGIN,
+      ...(TOKEN_BYPASS_KEY ? { "x-live-token-key": TOKEN_BYPASS_KEY } : {}),
     },
     body: JSON.stringify({ model: MODEL }),
   });
@@ -44,7 +46,7 @@ async function main() {
   const session1 = await ai1.live.connect({
     model: MODEL,
     config: {
-      responseModalities: [Modality.TEXT],
+      responseModalities: [Modality.AUDIO],
       sessionResumption: {},
     },
     callbacks: {
@@ -74,19 +76,22 @@ async function main() {
     },
   });
 
-  session1.sendRealtimeInput({ text: "Say only: ready" });
-
-  const started1 = Date.now();
-  while (
-    (!setupComplete1 || !resumableHandle) &&
-    Date.now() - started1 < 12000
-  ) {
+  const startedSetup1 = Date.now();
+  while (!setupComplete1 && Date.now() - startedSetup1 < 12000) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   if (!setupComplete1) {
     throw new Error("Initial connection did not send setupComplete");
   }
+
+  session1.sendRealtimeInput({ text: "Say only: ready" });
+
+  const started1 = Date.now();
+  while (!resumableHandle && Date.now() - started1 < 12000) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
   if (!resumableHandle) {
     throw new Error("No resumable handle received from initial session");
   }
@@ -102,7 +107,7 @@ async function main() {
   const session2 = await ai2.live.connect({
     model: MODEL,
     config: {
-      responseModalities: [Modality.TEXT],
+      responseModalities: [Modality.AUDIO],
       sessionResumption: {
         handle: resumableHandle,
       },

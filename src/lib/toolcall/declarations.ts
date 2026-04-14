@@ -59,8 +59,17 @@ function parseRenderUiInput(specJson: string): unknown {
 }
 
 const coreFunctionsMap: Record<string, any> = {
-  render_altair: (args: { json_graph: string }) => {
-    return args.json_graph;
+  render_altair: (args: { json_graph?: unknown }) => {
+    const candidate = args.json_graph;
+    if (typeof candidate === "string") {
+      return candidate;
+    }
+    if (candidate && typeof candidate === "object") {
+      return JSON.stringify(candidate);
+    }
+    throw new Error(
+      "render_altair requires chart JSON in json_graph",
+    );
   },
   render_ui: (args: { spec_json: string }) => {
     try {

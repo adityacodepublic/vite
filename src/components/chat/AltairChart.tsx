@@ -5,6 +5,35 @@ type AltairChartProps = {
   specJson: string;
 };
 
+function normalizeChartSpec(input: unknown): unknown {
+  let spec = input;
+
+  if (spec && typeof spec === "object" && !Array.isArray(spec)) {
+    const container = spec as Record<string, unknown>;
+    const nested = container.json_graph ?? container.output ?? container.spec;
+    if (typeof nested === "string") {
+      try {
+        spec = JSON.parse(nested);
+      } catch {
+        spec = nested;
+      }
+    } else if (nested && typeof nested === "object") {
+      spec = nested;
+    }
+  }
+
+  if (spec && typeof spec === "object" && !Array.isArray(spec)) {
+    const chart = spec as Record<string, unknown>;
+    const schema = chart.$schema;
+    if (typeof schema === "string" && schema.includes("altair-viz.github.io")) {
+      chart.$schema = "https://vega.github.io/schema/vega-lite/v5.json";
+    }
+    return chart;
+  }
+
+  return spec;
+}
+
 export function AltairChart({ specJson }: AltairChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -15,7 +44,7 @@ export function AltairChart({ specJson }: AltairChartProps) {
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(specJson);
+      parsed = normalizeChartSpec(JSON.parse(specJson));
     } catch {
       containerRef.current.innerHTML = "Invalid chart payload.";
       return;
@@ -31,6 +60,9 @@ export function AltairChart({ specJson }: AltairChartProps) {
       width: 620,
       height: 340,
       actions: false,
+    }).catch((error) => {
+      containerRef.current!.innerHTML = "Could not render chart payload.";
+      console.error("[AltairChart] Failed to render chart", error, parsed);
     });
   }, [specJson]);
 

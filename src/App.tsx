@@ -21,6 +21,8 @@ import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
 const TOKEN_SERVER_URL =
   (import.meta.env.VITE_GEMINI_TOKEN_SERVER_URL as string | undefined) ??
   "https://gemini-live-token-server.simpelskiff.workers.dev/token";
+const TOKEN_BYPASS_KEY =
+  import.meta.env.VITE_GEMINI_TOKEN_BYPASS_KEY as string | undefined;
 
 const apiOptions: LiveClientOptions = {
   apiVersion: "v1alpha",
@@ -29,6 +31,9 @@ const apiOptions: LiveClientOptions = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(TOKEN_BYPASS_KEY
+          ? { "x-live-token-key": TOKEN_BYPASS_KEY }
+          : {}),
       },
       body: JSON.stringify({
         model: "gemini-3.1-flash-live-preview",
