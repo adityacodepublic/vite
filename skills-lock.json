@@ -1,10 +1,25 @@
 {
   "version": 1,
   "skills": {
+    "gemini-api-dev": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "a72a3164552bd1764bca52d33806f4578572af3c279611a5bda420b6a9ca68c4"
+    },
+    "gemini-interactions-api": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "a7017c7e4219aed7e8b6b81c4a6f8906490801b0c6e9c8189cd9721a0c55c845"
+    },
     "gemini-live-api-dev": {
       "source": "google-gemini/gemini-skills",
       "sourceType": "github",
-      "computedHash": "cbf7a485940a758ca5c9ca852464a33d024d65b82685bb3238da05dfc8240f79"
+      "computedHash": "7d4e786684cf92386d22defc18cbebef87113046923e7931b4cdec4fffaaaea6"
+    },
+    "vertex-ai-api-dev": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "050cf4e9a14ebc86120007c59ea5dd0cf3924037b8a78871d960e0d05a4bac17"
     }
   }
 }
