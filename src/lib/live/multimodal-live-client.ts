@@ -84,11 +84,20 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   constructor(options: LiveClientOptions) {
     super();
     this.options = options;
-    this.client = new GoogleGenAI({ ...options, apiKey: options.apiKey ?? "" });
+    this.client = this.createClient(options.apiKey ?? "");
     this.onopen = this.onopen.bind(this);
     this.onerror = this.onerror.bind(this);
     this.onclose = this.onclose.bind(this);
     this.onmessage = this.onmessage.bind(this);
+  }
+
+  private createClient(apiKey: string): GoogleGenAI {
+    const { getEphemeralToken: _unused, ...baseOptions } = this.options;
+    return new GoogleGenAI({
+      ...baseOptions,
+      apiKey,
+      apiVersion: baseOptions.apiVersion ?? "v1alpha",
+    });
   }
 
   private async resolveApiKey(): Promise<string> {
@@ -136,8 +145,14 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this.config = config;
     this._model = normalizedModel;
 
-    const apiKey = await this.resolveApiKey();
-    this.client = new GoogleGenAI({ ...this.options, apiKey });
+    try {
+      const apiKey = await this.resolveApiKey();
+      this.client = this.createClient(apiKey);
+    } catch (e) {
+      console.error("Error resolving GenAI credentials:", e);
+      this._status = "disconnected";
+      return false;
+    }
 
     const callbacks: LiveCallbacks = {
       onopen: this.onopen,

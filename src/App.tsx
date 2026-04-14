@@ -23,6 +23,7 @@ const TOKEN_SERVER_URL =
   "https://gemini-live-token-server.simpelskiff.workers.dev/token";
 
 const apiOptions: LiveClientOptions = {
+  apiVersion: "v1alpha",
   getEphemeralToken: async () => {
     const response = await fetch(TOKEN_SERVER_URL, {
       method: "POST",
@@ -35,7 +36,10 @@ const apiOptions: LiveClientOptions = {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch ephemeral token (${response.status})`);
+      const details = await response.text();
+      throw new Error(
+        `Failed to fetch ephemeral token (${response.status}): ${details}`,
+      );
     }
 
     const body = (await response.json()) as { token?: string };
