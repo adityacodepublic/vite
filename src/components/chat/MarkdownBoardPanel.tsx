@@ -11,9 +11,7 @@ import rehypeKatex from "rehype-katex";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { RefObject, useEffect, useMemo, useRef, useState } from "react";
-import type { ControlTrayHandle } from "@/components/control-tray/ControlTray";
-import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   downloadMarkdownAsPdf,
   downloadMarkdownAsWord,
@@ -21,32 +19,13 @@ import {
 import { useChatStore } from "@/lib/chat/store";
 import { EditableMarkdownContent } from "./EditableMarkdownContent";
 
-type MarkdownBoardPanelProps = {
-  videoStream: MediaStream | null;
-  controlTrayRef: RefObject<ControlTrayHandle | null>;
-};
-
-export function MarkdownBoardPanel({
-  videoStream,
-  controlTrayRef,
-}: MarkdownBoardPanelProps) {
-  const { client, connected } = useLiveAPIContext();
+export function MarkdownBoardPanel() {
   const { cards, activeCardId } = useChatStore((state) => state.markdownBoard);
-  const cameraMarkdown = useChatStore((state) => state.cameraMarkdown);
   const openMarkdownCard = useChatStore((state) => state.openMarkdownCard);
   const closeMarkdownCard = useChatStore((state) => state.closeMarkdownCard);
   const removeMarkdownCard = useChatStore((state) => state.removeMarkdownCard);
   const updateMarkdownCard = useChatStore((state) => state.updateMarkdownCard);
-  const openCameraMarkdown = useChatStore((state) => state.openCameraMarkdown);
-  const closeCameraMarkdown = useChatStore(
-    (state) => state.closeCameraMarkdown,
-  );
-  const updateCameraMarkdown = useChatStore(
-    (state) => state.updateCameraMarkdown,
-  );
   const shouldReduceMotion = useReducedMotion();
-  const cameraVideoRef = useRef<HTMLVideoElement>(null);
-  const modalOpenedWebcamRef = useRef(false);
   const activeCardContentRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -61,11 +40,6 @@ export function MarkdownBoardPanel({
   const handleCloseCard = () => {
     setIsExportMenuOpen(false);
     closeMarkdownCard();
-  };
-
-  const handleOpenCameraMarkdown = () => {
-    void controlTrayRef.current?.prepareCameraFrameLogging();
-    openCameraMarkdown();
   };
 
   const handleDownloadWord = async () => {
@@ -87,19 +61,6 @@ export function MarkdownBoardPanel({
     }
   };
 
-  const handleCloseCameraMarkdown = () => {
-    if (connected) {
-      client.sendRealtimeText(
-        "camera markdown component is closed by the user. This is only to inform you. Do not acknowledge or reply. or you can reply with 'Now what would you like to do next?'",
-      );
-    }
-    closeCameraMarkdown();
-    if (modalOpenedWebcamRef.current) {
-      controlTrayRef.current?.stopWebcam();
-      modalOpenedWebcamRef.current = false;
-    }
-  };
-
   const handleDownloadPdf = async () => {
     if (!activeCard || !activeCardContentRef.current || isExportingPdf) {
       return;
@@ -118,59 +79,6 @@ export function MarkdownBoardPanel({
       setIsExportingPdf(false);
     }
   };
-
-  useEffect(() => {
-    const video = cameraVideoRef.current;
-    if (!video) {
-      return;
-    }
-
-    video.srcObject = videoStream;
-  }, [videoStream]);
-
-  useEffect(() => {
-    if (!cameraMarkdown.isOpen) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const ensureLiveMode = async () => {
-      modalOpenedWebcamRef.current = false;
-      const tray = controlTrayRef.current;
-      if (!tray) {
-        return;
-      }
-
-      if (!tray.isConnected()) {
-        const didConnect = await tray.connectVoiceMode();
-        if (!didConnect || cancelled) {
-          return;
-        }
-      }
-
-      if (cancelled) {
-        return;
-      }
-
-      client.sendRealtimeText(
-        "camera markdown component is opened by the user dont reply, as this is a system message. This is only to inform you. Use capture_snapshot when the user asks you to inspect what is shown, prefer accurate scanning, and ask for repositioning if needed. Just reply with 'Ready to scan !'.",
-      );
-
-      if (!tray.isWebcamStreaming()) {
-        const started = await tray.startWebcam();
-        if (!cancelled) {
-          modalOpenedWebcamRef.current = started;
-        }
-      }
-    };
-
-    void ensureLiveMode();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cameraMarkdown.isOpen, client, controlTrayRef]);
 
   useEffect(() => {
     setIsExportMenuOpen(false);
@@ -216,40 +124,6 @@ export function MarkdownBoardPanel({
 
         <LayoutGroup id="markdown-board-cards">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <motion.article
-              layoutId={shouldReduceMotion ? undefined : "camera-markdown-card"}
-              transition={{
-                layout: { duration: 0.12, ease: [0.4, 0, 0.2, 1] },
-              }}
-              onClick={() => {
-                handleOpenCameraMarkdown();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  handleOpenCameraMarkdown();
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              style={{
-                visibility: cameraMarkdown.isOpen ? "hidden" : "visible",
-              }}
-              className="group relative cursor-pointer rounded-2xl border border-sky-200 bg-linear-to-br from-white via-sky-50 to-emerald-50 p-4 text-left shadow-sm transition-shadow duration-200 hover:shadow-lg"
-            >
-              <div className="transition-transform duration-200 group-hover:scale-101">
-                <h3 className="line-clamp-2 text-base font-semibold text-zinc-900">
-                  {cameraMarkdown.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-zinc-600">
-                  Open camera-assisted markdown workspace
-                </p>
-                <p className="mt-4 text-xs font-medium text-zinc-500 group-hover:text-zinc-800">
-                  Open workspace
-                </p>
-              </div>
-            </motion.article>
-
             {cards.map((card) => {
               const cardLayoutId = `markdown-card-${card.id}`;
               return (
@@ -320,9 +194,9 @@ export function MarkdownBoardPanel({
 
           {cards.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-white/70 px-6 py-8 text-center text-sm text-zinc-500">
-              No markdown cards yet. The assistant can add cards using
+              No markdown cards yet. The assistant can manage board cards with
               <span className="ml-1 font-semibold text-zinc-700">
-                render_ui
+                markdown_board
               </span>
               .
             </div>
@@ -433,87 +307,6 @@ export function MarkdownBoardPanel({
                           updateMarkdownCard(activeCard.id, nextMarkdown);
                         }}
                       />
-                    </div>
-                  </motion.article>
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <AnimatePresence initial={false}>
-            {cameraMarkdown.isOpen ? (
-              <motion.div
-                key="camera-markdown-overlay"
-                layoutRoot
-                className="fixed inset-0 z-50"
-                initial={{ opacity: 1 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 1 }}
-              >
-                <motion.div
-                  key="camera-markdown-backdrop"
-                  className="absolute inset-0 bg-black/45"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.08, ease: "easeOut" }}
-                  onClick={handleCloseCameraMarkdown}
-                />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-                  <motion.article
-                    layoutId={
-                      shouldReduceMotion ? undefined : "camera-markdown-card"
-                    }
-                    className="pointer-events-auto max-h-[88vh] w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl"
-                    transition={{
-                      layout: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
-                      <h3 className="text-lg font-semibold text-zinc-900">
-                        {cameraMarkdown.title}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={handleCloseCameraMarkdown}
-                        className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
-                      >
-                        Close
-                      </button>
-                    </header>
-
-                    <div className="grid max-h-[calc(88vh-72px)] grid-cols-1 gap-0 overflow-hidden md:grid-cols-2">
-                      <section className="border-b border-zinc-200 bg-zinc-950/95 p-4 md:border-b-0 md:border-r">
-                        <div className="flex h-full min-h-[280px] flex-col gap-3">
-                          <h4 className="text-sm font-semibold text-zinc-100">
-                            Live camera to agent
-                          </h4>
-                          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-zinc-800 bg-black">
-                            <video
-                              ref={cameraVideoRef}
-                              autoPlay
-                              playsInline
-                              muted
-                              className="h-full max-h-[56vh] w-full object-cover"
-                            />
-                            {!videoStream ? (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4 text-center text-sm text-zinc-300">
-                                Starting voice mode and camera. If blocked,
-                                allow camera permissions.
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </section>
-
-                      <section className="max-h-[calc(88vh-72px)] overflow-y-auto px-5 py-4">
-                        <EditableMarkdownContent
-                          className="markdown-content text-sm leading-6 text-zinc-800"
-                          markdown={cameraMarkdown.markdown}
-                          onChange={updateCameraMarkdown}
-                        />
-                      </section>
                     </div>
                   </motion.article>
                 </div>

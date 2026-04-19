@@ -83,7 +83,6 @@ export function ChatScreen() {
     addAltairSpec,
     addJsonRenderSpec,
     addSystemMessage,
-    upsertMarkdownCards,
   } = useChatStore();
 
   useEffect(() => {
@@ -206,7 +205,6 @@ You are a voice-first document and financial assistant.
                   callId,
                   toolName,
                   summary: parsed.summary,
-                  markdownCards: parsed.markdownCards.length,
                   warnings: parsed.warnings,
                 });
               } else {
@@ -229,9 +227,6 @@ You are a voice-first document and financial assistant.
                 parsed.issues,
                 parsed.warnings,
               );
-              if (parsed.markdownCards.length) {
-                upsertMarkdownCards(parsed.markdownCards);
-              }
               if (parsed.warnings.length) {
                 toolLog("warn", "render_ui.warnings", {
                   callId,
@@ -317,7 +312,6 @@ You are a voice-first document and financial assistant.
     addAssistantTextChunk,
     addJsonRenderSpec,
     addSystemMessage,
-    upsertMarkdownCards,
     addToolResult,
     client,
     finalizeAssistantText,

@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -62,6 +63,8 @@ export type ControlTrayProps = {
   children?: ReactNode;
   supportsVideo: boolean;
   onVideoStreamChange?: (stream: MediaStream | null) => void;
+  onCameraStarted?: (source: "user" | "agent_snapshot") => void;
+  onCameraStopped?: () => void;
   onSnapshotGlow?: () => void;
 };
 
@@ -124,16 +127,22 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       videoRef,
       children,
       onVideoStreamChange = () => {},
+      onCameraStarted = () => {},
+      onCameraStopped = () => {},
       supportsVideo,
       onSnapshotGlow,
     },
     ref,
   ) => {
-    const videoStreams = [useWebcam(), useScreenCapture()];
+    const webcam = useWebcam();
+    const screenCapture = useScreenCapture();
+    const videoStreams = useMemo(
+      () => [webcam, screenCapture],
+      [screenCapture, webcam],
+    );
     const [activeVideoStream, setActiveVideoStream] =
       useState<MediaStream | null>(null);
     const [textInput, setTextInput] = useState("");
-    const [webcam, screenCapture] = videoStreams;
     const [audioRecorder] = useState(() => new AudioRecorder());
     const [muted, setMuted] = useState(false);
     const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
@@ -164,16 +173,14 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       (state) => state.finalizeAttachment,
     );
     const failAttachment = useChatStore((state) => state.failAttachment);
-    const isCameraMarkdownOpen = useChatStore(
-      (state) => state.cameraMarkdown.isOpen,
-    );
     const isLoading = false;
 
-    const startWebcam = useCallback(async () => {
+    const startWebcam = useCallback(async (source: "user" | "agent_snapshot" = "user") => {
       try {
         const mediaStream = await webcam.start();
         setActiveVideoStream(mediaStream);
         onVideoStreamChange(mediaStream);
+        onCameraStarted(source);
         videoStreams
           .filter((msr) => msr !== webcam)
           .forEach((msr) => msr.stop());
@@ -182,11 +189,12 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
         console.error("[ControlTray] Failed to start webcam", error);
         return false;
       }
-    }, [onVideoStreamChange, videoStreams, webcam]);
+    }, [onCameraStarted, onVideoStreamChange, videoStreams, webcam]);
 
     const stopWebcam = useCallback(() => {
       const webcamStream = webcam.stream;
       webcam.stop();
+      onCameraStopped();
       if (
         activeVideoStream &&
         webcamStream &&
@@ -195,7 +203,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
         setActiveVideoStream(null);
         onVideoStreamChange(null);
       }
-    }, [activeVideoStream, onVideoStreamChange, webcam]);
+    }, [activeVideoStream, onCameraStopped, onVideoStreamChange, webcam]);
 
     const connectVoiceMode = useCallback(async () => {
       if (connected) {
@@ -211,9 +219,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       }
     }, [connect, connected]);
 
-    const prepareCameraFrameLogging = useCallback(async () => {
-      return;
-    }, []);
+    const prepareCameraFrameLogging = useCallback(async () => {}, []);
 
     const estimateBytesFromBase64 = useCallback((base64: string) => {
       const padding = base64.endsWith("==")
@@ -290,7 +296,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       let startedWebcamForCapture = false;
 
       if (!wasWebcamStreaming) {
-        const started = await startWebcam();
+        const started = await startWebcam("agent_snapshot");
         if (!started) {
           throw new Error(
             "Webcam is not active. Ask the user to turn on camera.",
@@ -819,16 +825,9 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
 
         const sourceWidth = video.videoWidth;
         const sourceHeight = video.videoHeight;
-        const isCameraMarkdownPreviewStream =
-          isCameraMarkdownOpen &&
-          webcam.isStreaming &&
-          activeVideoStream === webcam.stream;
 
         if (sourceWidth > 0 && sourceHeight > 0) {
-          if (
-            !snapshotCaptureInFlightRef.current &&
-            !isCameraMarkdownPreviewStream
-          ) {
+          if (!snapshotCaptureInFlightRef.current) {
             const ctx = canvas.getContext("2d")!;
             canvas.width = sourceWidth * 0.25;
             canvas.height = sourceHeight * 0.25;
@@ -862,37 +861,33 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       activeVideoStream,
       client,
       connected,
-      isCameraMarkdownOpen,
       videoRef,
-      webcam.isStreaming,
-      webcam.stream,
     ]);
 
-    //handler for swapping from one video-stream to the next
-    const changeStreams = (next?: UseMediaStreamResult) => async () => {
-      if (next) {
-        const mediaStream = await next.start();
-        setActiveVideoStream(mediaStream);
-        onVideoStreamChange(mediaStream);
-      } else {
-        setActiveVideoStream(null);
-        onVideoStreamChange(null);
-      }
+    // handler for swapping from one video-stream to the next
+    const changeStreams =
+      (next?: UseMediaStreamResult, source: "user" | "agent_snapshot" = "user") =>
+      async () => {
+        if (next) {
+          if (next !== webcam && webcam.isStreaming) {
+            onCameraStopped();
+          }
+          const mediaStream = await next.start();
+          setActiveVideoStream(mediaStream);
+          onVideoStreamChange(mediaStream);
+          if (next === webcam) {
+            onCameraStarted(source);
+          }
+        } else {
+          if (webcam.isStreaming) {
+            onCameraStopped();
+          }
+          setActiveVideoStream(null);
+          onVideoStreamChange(null);
+        }
 
-      videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
-    };
-
-    const changeStreamr = (next?: UseMediaStreamResult) => async () => {
-      if (next) {
-        const mediaStream = await next.start();
-        setActiveVideoStream(mediaStream);
-      } else {
-        setActiveVideoStream(null);
-        onVideoStreamChange(null);
-      }
-
-      videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
-    };
+        videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
+      };
 
     return (
       <section className="absolute -translate-x-2/4 translate-y-0 flex flex-col justify-end items-center gap-1 w-[95%] md:w-full pb-[16px] left-2/4 bottom-0">
@@ -995,7 +990,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
                         <>
                           <MediaStreamButton
                             isStreaming={screenCapture.isStreaming}
-                            start={changeStreamr(screenCapture)}
+                            start={changeStreams(screenCapture)}
                             stop={changeStreams()}
                             disabled={!connected}
                             onIcon={<MonitorOff className="size-5.5" />}
@@ -1003,7 +998,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
                           />
                           <MediaStreamButton
                             isStreaming={webcam.isStreaming}
-                            start={changeStreams(webcam)}
+                            start={changeStreams(webcam, "user")}
                             stop={changeStreams()}
                             disabled={!connected}
                             onIcon={<Video className="size-5.5" />}

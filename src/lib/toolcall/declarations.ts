@@ -13,7 +13,7 @@ import { invokeSnapshotHandler } from "@/lib/toolcall/snapshot-runtime";
 
 const RENDER_UI_COMPONENTS_DOC =
   extractAvailableComponentsBlock(chatCatalog.prompt()) ||
-  "AVAILABLE COMPONENTS: Card, Stack, Heading, Text, Badge, Separator, Table, Alert, MarkdownCards";
+  "AVAILABLE COMPONENTS: Card, Stack, Heading, Text, Badge, Separator, Table, Alert";
 
 const RENDER_UI_DOC = [
   "Render structured chat UI from a JSON string payload.",
@@ -23,12 +23,10 @@ const RENDER_UI_DOC = [
   "If the user asks to render/demo components without full data, fill missing required fields with sensible sample values using your best judgment. Or ask the user UG",
   "Prefer producing a valid render payload over asking follow-up questions when intent is component preview/demo.",
   "Never leave required component fields empty or omitted.",
-  "For markdown cards, use: { type: 'MarkdownCards', props: { title?, cards: [{ title, markdown, id? }] } }.",
   "Minimal valid starter fields by component:",
   "- Heading/Text/Badge: provide `props.text`.",
   "- Alert: provide `props.title` (optional: message/type).",
   "- Table: provide non-empty `props.columns` and `props.rows`.",
-  "- MarkdownCards: provide non-empty `props.cards` with { title, markdown }.",
   "Keep the UI concise and relevant to the user request.",
   "",
   RENDER_UI_COMPONENTS_DOC,
@@ -58,7 +56,7 @@ function parseRenderUiInput(specJson: string): unknown {
   return parsed;
 }
 
-const coreFunctionsMap: Record<string, any> = {
+const coreFunctionsMap: Record<string, (...args: never[]) => unknown> = {
   render_altair: (args: { json_graph?: unknown }) => {
     const candidate = args.json_graph;
     if (typeof candidate === "string") {
@@ -93,7 +91,6 @@ const coreFunctionsMap: Record<string, any> = {
         valid: false,
         issues: [`spec_json: ${message}`],
         warnings: [],
-        markdownCards: [],
         summary: {
           rootType: null,
           nodeCount: 0,
@@ -105,35 +102,79 @@ const coreFunctionsMap: Record<string, any> = {
     console.log("[sendToUser]", args.text);
     return { delivered: true, text: args.text };
   },
-  read_camera_markdown: () => {
-    const state = useChatStore.getState().cameraMarkdown;
-    return {
-      title: state.title,
-      markdown: state.markdown,
-      isOpen: state.isOpen,
-      charCount: state.markdown.length,
+  markdown_board: (args: {
+    command: "ls" | "read" | "create" | "full_write" | "delete";
+    cardId?: string;
+    data?: {
+      title?: string;
+      markdown?: string;
     };
-  },
-  write_camera_markdown: (args: {
-    markdown: string;
-    mode?: "replace" | "append";
   }) => {
-    const mode = args.mode === "append" ? "append" : "replace";
     const store = useChatStore.getState();
-    const previous = store.cameraMarkdown.markdown;
-    const nextMarkdown =
-      mode === "append"
-        ? `${previous}${previous && args.markdown ? "\n\n" : ""}${args.markdown}`
-        : args.markdown;
-
-    store.updateCameraMarkdown(nextMarkdown);
-
-    return {
-      updated: true,
-      mode,
-      previousCharCount: previous.length,
-      nextCharCount: nextMarkdown.length,
-    };
+    switch (args.command) {
+      case "ls":
+        return store.listMarkdownCards();
+      case "read": {
+        if (!args.cardId) {
+          throw new Error("markdown_board read requires cardId.");
+        }
+        const card = store.getMarkdownCard(args.cardId);
+        if (!card) {
+          throw new Error(`Markdown card '${args.cardId}' was not found.`);
+        }
+        return card;
+      }
+      case "create": {
+        const title = args.data?.title?.trim();
+        const markdown = args.data?.markdown?.trim();
+        if (!title || !markdown) {
+          throw new Error(
+            "markdown_board create requires data.title and data.markdown.",
+          );
+        }
+        const card = store.createMarkdownCard({ title, markdown });
+        return {
+          created: true,
+          cardId: card.id,
+          title: card.title,
+        };
+      }
+      case "full_write": {
+        if (!args.cardId) {
+          throw new Error("markdown_board full_write requires cardId.");
+        }
+        const markdown = args.data?.markdown?.trim();
+        if (!markdown) {
+          throw new Error("markdown_board full_write requires data.markdown.");
+        }
+        const card = store.replaceMarkdownCard(args.cardId, {
+          title: args.data?.title,
+          markdown,
+        });
+        return {
+          updated: true,
+          cardId: card.id,
+          title: card.title,
+        };
+      }
+      case "delete": {
+        if (!args.cardId) {
+          throw new Error("markdown_board delete requires cardId.");
+        }
+        const card = store.getMarkdownCard(args.cardId);
+        if (!card) {
+          throw new Error(`Markdown card '${args.cardId}' was not found.`);
+        }
+        store.removeMarkdownCard(args.cardId);
+        return {
+          deleted: true,
+          cardId: args.cardId,
+          title: card.title,
+        };
+      }
+      default:
+        throw new Error("markdown_board received an unsupported command.");
+    }
   },
   capture_snapshot: async (args: { source: "screen" | "camera" }) => {
     if (args?.source !== "screen" && args?.source !== "camera") {
@@ -144,7 +185,7 @@ const coreFunctionsMap: Record<string, any> = {
   },
 };
 
-export const functionsmap: Record<string, any> = {
+export const functionsmap: Record<string, (...args: never[]) => unknown> = {
   ...coreFunctionsMap,
   ...bankingFunctionsMap,
 };
@@ -174,7 +215,7 @@ const coreDeclarations: FunctionDeclaration[] = [
         spec_json: {
           type: Type.STRING,
           description:
-            'JSON string for UI spec. Recommended form: {"spec":{"root":{"type":"MarkdownCards","props":{"cards":[{"title":"Topic","markdown":"## Notes"}]}}}}. You may also send {"root":{...}} directly. \n If a component fails to render then, understand the error, fix the issue and try again. Repeat up to 5-6 attempts with different fixes if needed, Only report failure if all attempts fail, and include the likely cause.',
+            'JSON string for UI spec. Recommended form: {"spec":{"root":{"type":"Card","children":[{"type":"Text","props":{"text":"Hello"}}]}}}. You may also send {"root":{...}} directly. \n If a component fails to render then, understand the error, fix the issue and try again. Repeat up to 5-6 attempts with different fixes if needed, Only report failure if all attempts fail, and include the likely cause.',
         },
       },
       required: ["spec_json"],
@@ -195,35 +236,42 @@ const coreDeclarations: FunctionDeclaration[] = [
     },
   },
   {
-    name: "read_camera_markdown",
+    name: "markdown_board",
     description:
-      "Read the current contents of the persistent camera markdown document. Use this before edits so you can revise existing content accurately.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: "write_camera_markdown",
-    description:
-      "For camera-to-markdown workflows, read existing document content with read_camera_markdown before edits, then update it with write_camera_markdown. Prefer append so existing content is preserved, and do not remove or replace pre-existing content unless the user explicitly asks for that. Read the current document first when revising existing notes.",
+      "Manage the markdown board cards directly. Use this tool for all board/card operations instead of render_ui. 'Scan' means: when the user asks you to inspect something visible on screen, camera, uploaded media, shared media, or other provided data, gather the relevant observations and store them in a markdown board card. Use command 'ls' first to inspect the board state; it returns all cards with id and title and also tells you which card is currently open. Use 'read' before revising an existing card. Use 'create' to add a new card. Use 'full_write' only when intentionally replacing an entire card body, optionally with a new title. Use 'delete' to remove an obsolete card. Prefer preserving useful existing notes unless the user explicitly asks to overwrite or remove them.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        markdown: {
+        command: {
           type: Type.STRING,
           description:
-            "Markdown content to write into the camera markdown document.",
+            "Board operation to execute. Use 'ls' to list cards, 'read' to read one card, 'create' to add a card, 'full_write' to replace a card, or 'delete' to remove one.",
+          enum: ["ls", "read", "create", "full_write", "delete"],
         },
-        mode: {
+        cardId: {
           type: Type.STRING,
           description:
-            "Write mode. Use 'replace' to overwrite the entire current content, or 'append' to add to the end.",
-          enum: ["replace", "append"],
+            "Target card id for 'read', 'full_write', or 'delete'. Not used for 'ls'.",
+        },
+        data: {
+          type: Type.OBJECT,
+          description:
+            "Payload for write operations. For 'create', provide title and markdown. For 'full_write', provide markdown and optionally title.",
+          properties: {
+            title: {
+              type: Type.STRING,
+              description:
+                "Card title for create, or optional replacement title for full_write.",
+            },
+            markdown: {
+              type: Type.STRING,
+              description:
+                "Full markdown body to create or fully replace a card with.",
+            },
+          },
         },
       },
-      required: ["markdown"],
+      required: ["command"],
     },
   },
   {

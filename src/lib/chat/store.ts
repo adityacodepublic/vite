@@ -3,7 +3,6 @@ import type { TreeSpec } from "@/lib/json-render/chat-renderer";
 
 const MARKDOWN_BOARD_LIMIT = 50;
 const MARKDOWN_BOARD_STORAGE_KEY = "chat-markdown-board-v1";
-const CAMERA_MARKDOWN_STORAGE_KEY = "chat-camera-markdown-v1";
 
 type BaseChatMessage = {
   id: string;
@@ -71,17 +70,10 @@ type MarkdownBoardState = {
   activeCardId: string | null;
 };
 
-export type CameraMarkdownState = {
-  title: string;
-  markdown: string;
-  isOpen: boolean;
-};
-
 type ChatState = {
   messages: ChatMessage[];
   streamingAssistantId: string | null;
   markdownBoard: MarkdownBoardState;
-  cameraMarkdown: CameraMarkdownState;
   addUserText: (text: string) => void;
   addAssistantTextChunk: (text: string) => void;
   finalizeAssistantText: () => void;
@@ -102,16 +94,22 @@ type ChatState = {
   updateAttachmentProgress: (id: string, progress: number) => void;
   finalizeAttachment: (id: string) => void;
   failAttachment: (id: string, error?: string) => void;
-  upsertMarkdownCards: (cards: MarkdownBoardCardInput[]) => void;
+  listMarkdownCards: () => {
+    cards: Array<{ id: string; title: string }>;
+    openCardId: string | null;
+    noCardOpen: boolean;
+  };
+  getMarkdownCard: (cardId: string) => MarkdownBoardCard | null;
+  createMarkdownCard: (input: MarkdownBoardCardInput) => MarkdownBoardCard;
+  replaceMarkdownCard: (
+    cardId: string,
+    input: { markdown: string; title?: string },
+  ) => MarkdownBoardCard;
   updateMarkdownCard: (cardId: string, markdown: string) => void;
   openMarkdownCard: (cardId: string) => void;
   closeMarkdownCard: () => void;
   removeMarkdownCard: (cardId: string) => void;
   clearMarkdownBoard: () => void;
-  openCameraMarkdown: () => void;
-  closeCameraMarkdown: () => void;
-  updateCameraMarkdown: (markdown: string) => void;
-  updateCameraMarkdownTitle: (title: string) => void;
   reset: () => void;
 };
 
@@ -120,24 +118,12 @@ type PersistedMarkdownBoard = {
   cards: MarkdownBoardCard[];
 };
 
-type PersistedCameraMarkdown = {
-  version: number;
-  title: string;
-  markdown: string;
-};
-
 const createId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const emptyMarkdownBoard: MarkdownBoardState = {
   cards: [],
   activeCardId: null,
-};
-
-const defaultCameraMarkdown: CameraMarkdownState = {
-  title: "Camera Markdown",
-  markdown: "",
-  isOpen: false,
 };
 
 const isBrowser = () => typeof window !== "undefined";
@@ -191,51 +177,7 @@ const persistMarkdownBoard = (cards: MarkdownBoardCard[]) => {
   window.localStorage.setItem(MARKDOWN_BOARD_STORAGE_KEY, JSON.stringify(payload));
 };
 
-const loadCameraMarkdown = (): CameraMarkdownState => {
-  if (!isBrowser()) {
-    return defaultCameraMarkdown;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(CAMERA_MARKDOWN_STORAGE_KEY);
-    if (!raw) {
-      return defaultCameraMarkdown;
-    }
-
-    const parsed = JSON.parse(raw) as PersistedCameraMarkdown;
-    if (
-      parsed.version !== 1 ||
-      typeof parsed.title !== "string" ||
-      typeof parsed.markdown !== "string"
-    ) {
-      return defaultCameraMarkdown;
-    }
-
-    return {
-      title: parsed.title.trim() || defaultCameraMarkdown.title,
-      markdown: parsed.markdown,
-      isOpen: false,
-    };
-  } catch {
-    return defaultCameraMarkdown;
-  }
-};
-
-const persistCameraMarkdown = (state: CameraMarkdownState) => {
-  if (!isBrowser()) {
-    return;
-  }
-
-  const payload: PersistedCameraMarkdown = {
-    version: 1,
-    title: state.title.trim() || defaultCameraMarkdown.title,
-    markdown: state.markdown,
-  };
-
-  window.localStorage.setItem(CAMERA_MARKDOWN_STORAGE_KEY, JSON.stringify(payload));
-};
-
-const createMarkdownCard = (input: MarkdownBoardCardInput): MarkdownBoardCard => ({
+const buildMarkdownCard = (input: MarkdownBoardCardInput): MarkdownBoardCard => ({
   id: input.id?.trim() || createId(),
   title: input.title.trim(),
   markdown: input.markdown.trim(),
@@ -243,13 +185,11 @@ const createMarkdownCard = (input: MarkdownBoardCardInput): MarkdownBoardCard =>
 });
 
 const initialMarkdownBoard = loadMarkdownBoard();
-const initialCameraMarkdown = loadCameraMarkdown();
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   streamingAssistantId: null,
   markdownBoard: initialMarkdownBoard,
-  cameraMarkdown: initialCameraMarkdown,
   addUserText: (text) => {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -430,30 +370,23 @@ export const useChatStore = create<ChatState>((set) => ({
       ),
     }));
   },
-  upsertMarkdownCards: (cards) => {
-    const normalized = cards
-      .map((card) => createMarkdownCard(card))
-      .filter((card) => card.title && card.markdown);
-
-    if (!normalized.length) {
-      return;
-    }
-
+  listMarkdownCards: () => {
+    const state = useChatStore.getState().markdownBoard;
+    return {
+      cards: state.cards.map((card) => ({ id: card.id, title: card.title })),
+      openCardId: state.activeCardId,
+      noCardOpen: state.activeCardId === null,
+    };
+  },
+  getMarkdownCard: (cardId) =>
+    useChatStore
+      .getState()
+      .markdownBoard.cards.find((card) => card.id === cardId) ?? null,
+  createMarkdownCard: (input) => {
+    const nextCard = buildMarkdownCard(input);
     set((state) => {
-      const byId = new Map(state.markdownBoard.cards.map((card) => [card.id, card]));
-
-      normalized.forEach((card) => {
-        const existing = byId.get(card.id);
-        byId.set(card.id, {
-          ...(existing ?? card),
-          ...card,
-          createdAt: existing?.createdAt ?? card.createdAt,
-        });
-      });
-
-      const nextCards = sanitizeCards([...byId.values()]);
+      const nextCards = sanitizeCards([...state.markdownBoard.cards, nextCard]);
       persistMarkdownBoard(nextCards);
-
       return {
         markdownBoard: {
           ...state.markdownBoard,
@@ -461,6 +394,35 @@ export const useChatStore = create<ChatState>((set) => ({
         },
       };
     });
+    return nextCard;
+  },
+  replaceMarkdownCard: (cardId, input) => {
+    const store = useChatStore.getState();
+    const existing = store.markdownBoard.cards.find((card) => card.id === cardId);
+    if (!existing) {
+      throw new Error(`Markdown card '${cardId}' was not found.`);
+    }
+
+    const title = input.title?.trim() || existing.title;
+    const markdown = input.markdown.trim();
+    if (!title || !markdown) {
+      throw new Error("Markdown card title and markdown must not be empty.");
+    }
+
+    const nextCard = { ...existing, title, markdown };
+    set((state) => {
+      const nextCards = state.markdownBoard.cards.map((card) =>
+        card.id === cardId ? nextCard : card,
+      );
+      persistMarkdownBoard(nextCards);
+      return {
+        markdownBoard: {
+          ...state.markdownBoard,
+          cards: nextCards,
+        },
+      };
+    });
+    return nextCard;
   },
   updateMarkdownCard: (cardId, markdown) => {
     set((state) => {
@@ -520,48 +482,6 @@ export const useChatStore = create<ChatState>((set) => ({
       },
     }));
   },
-  openCameraMarkdown: () => {
-    set((state) => ({
-      cameraMarkdown: {
-        ...state.cameraMarkdown,
-        isOpen: true,
-      },
-    }));
-  },
-  closeCameraMarkdown: () => {
-    set((state) => ({
-      cameraMarkdown: {
-        ...state.cameraMarkdown,
-        isOpen: false,
-      },
-    }));
-  },
-  updateCameraMarkdown: (markdown) => {
-    set((state) => {
-      const nextCameraMarkdown = {
-        ...state.cameraMarkdown,
-        markdown,
-      };
-      persistCameraMarkdown(nextCameraMarkdown);
-
-      return {
-        cameraMarkdown: nextCameraMarkdown,
-      };
-    });
-  },
-  updateCameraMarkdownTitle: (title) => {
-    set((state) => {
-      const nextCameraMarkdown = {
-        ...state.cameraMarkdown,
-        title: title.trim() || defaultCameraMarkdown.title,
-      };
-      persistCameraMarkdown(nextCameraMarkdown);
-
-      return {
-        cameraMarkdown: nextCameraMarkdown,
-      };
-    });
-  },
   reset: () =>
     set((state) => ({
       messages: [],
@@ -569,10 +489,6 @@ export const useChatStore = create<ChatState>((set) => ({
       markdownBoard: {
         ...state.markdownBoard,
         activeCardId: null,
-      },
-      cameraMarkdown: {
-        ...state.cameraMarkdown,
-        isOpen: false,
       },
     })),
 }));

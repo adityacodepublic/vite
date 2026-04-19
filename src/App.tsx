@@ -1,22 +1,11 @@
 import cn from "classnames";
+import { Minimize2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
-import ControlTray, {
-  type ControlTrayHandle,
-} from "./components/control-tray/ControlTray";
+import ControlTray from "./components/control-tray/ControlTray";
 import { LiveClientOptions } from "./lib/live/types";
 import { ChatScreen } from "./components/chat/ChatScreen";
 import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
-
-// import SidePanel from "./components/side-panel/SidePanel";
-//import { addTransaction, fetchUserBalance, p2pTransfer } from "./lib/toolcall/functions";
-//console.log(await addTransaction(106, 500, "debit", "user 102 sent money to 106."));
-//console.log(await addTransaction(102, 500, "credit", "user 102 recieved money from 106."));
-//console.log(await p2pTransfer(106,102,500,"testing transfer"));
-//console.log(await fetchUserBalance(106))
-
-// const host = "generativelanguage.googleapis.com";
-// const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
 
 const TOKEN_SERVER_URL =
   (import.meta.env.VITE_GEMINI_TOKEN_SERVER_URL as string | undefined) ??
@@ -64,17 +53,79 @@ const apiOptions: LiveClientOptions = {
   },
 };
 
+type CameraStartSource = "user" | "agent_snapshot" | "board_scan" | null;
+
+type CameraUiState = {
+  isOverlayVisible: boolean;
+  lastStartSource: CameraStartSource;
+  inlinePlaybackVisible: boolean;
+  startedBySnapshotTool: boolean;
+};
+
+function FloatingCameraPreview({
+  stream,
+  visible,
+  onClose,
+}: {
+  stream: MediaStream | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const overlayVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (overlayVideoRef.current) {
+      overlayVideoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  if (!stream || !visible) {
+    return null;
+  }
+
+  return (
+    <div className="pointer-events-none fixed right-4 top-4 z-40">
+      <div className="pointer-events-auto w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2">
+          <p className="text-sm font-semibold text-zinc-900">Camera</p>
+          <button
+            type="button"
+            aria-label="Minimize camera overlay"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+          >
+            <Minimize2 className="size-4" />
+          </button>
+        </div>
+        <div className="bg-zinc-950 p-2">
+          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-black">
+            <video
+              ref={overlayVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="aspect-video w-full object-cover"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  // this video reference is used for displaying the active stream, whether that is the webcam or screen capture
-  // feel free to style as you see fit
   const videoRef = useRef<HTMLVideoElement>(
     null,
   ) as React.RefObject<HTMLVideoElement>;
-  // either the screen capture, the video or null, if null we hide it
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [isSnapshotGlowActive, setIsSnapshotGlowActive] = useState(false);
+  const [cameraUi, setCameraUi] = useState<CameraUiState>({
+    isOverlayVisible: false,
+    lastStartSource: null,
+    inlinePlaybackVisible: false,
+    startedBySnapshotTool: false,
+  });
   const horizontalPaneRef = useRef<HTMLDivElement>(null);
-  const controlTrayRef = useRef<ControlTrayHandle | null>(null);
   const snapshotGlowTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -121,6 +172,34 @@ function App() {
     });
   };
 
+  const handleVideoStreamChange = (stream: MediaStream | null) => {
+    setVideoStream(stream);
+    setCameraUi((current) => ({
+      ...current,
+      inlinePlaybackVisible: Boolean(stream),
+      isOverlayVisible: stream ? current.isOverlayVisible : false,
+      startedBySnapshotTool: stream ? current.startedBySnapshotTool : false,
+    }));
+  };
+
+  const handleCameraStarted = (source: Exclude<CameraStartSource, null>) => {
+    setCameraUi({
+      isOverlayVisible: true,
+      lastStartSource: source,
+      inlinePlaybackVisible: true,
+      startedBySnapshotTool: source === "agent_snapshot",
+    });
+  };
+
+  const handleCameraStopped = () => {
+    setCameraUi((current) => ({
+      ...current,
+      isOverlayVisible: false,
+      inlinePlaybackVisible: false,
+      startedBySnapshotTool: false,
+    }));
+  };
+
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
@@ -131,20 +210,22 @@ function App() {
               "snapshot-glow-overlay--active": isSnapshotGlowActive,
             })}
           />
-          {/* <SidePanel /> */}
           <div
             ref={horizontalPaneRef}
             className="h-full overflow-x-auto overflow-y-hidden scroll-smooth"
           >
             <div className="flex h-full w-[200vw]">
               <section className="h-full w-screen shrink-0 overflow-y-auto">
-                <div className="flex flex-col items-center pb-20">
+                <div className="flex flex-col items-center pb-28">
                   <ChatScreen />
                   <video
                     className={cn(
-                      "mt-2 max-h-[fit-content] max-w-[90%] flex-grow rounded-[32px]",
+                      "mb-8 mt-3 max-h-[fit-content] max-w-[90%] flex-grow rounded-[32px]",
                       {
-                        hidden: !videoRef.current || !videoStream,
+                        hidden:
+                          !videoRef.current ||
+                          !videoStream ||
+                          !cameraUi.inlinePlaybackVisible,
                       },
                     )}
                     ref={videoRef}
@@ -154,22 +235,31 @@ function App() {
                 </div>
               </section>
 
-              <MarkdownBoardPanel
-                videoStream={videoStream}
-                controlTrayRef={controlTrayRef}
-              />
+              <MarkdownBoardPanel />
             </div>
           </div>
+
+          <FloatingCameraPreview
+            stream={videoStream}
+            visible={cameraUi.isOverlayVisible}
+            onClose={() =>
+              setCameraUi((current) => ({
+                ...current,
+                isOverlayVisible: false,
+              }))
+            }
+          />
 
           <div className="invisible md:visible lg:visible pointer-events-none fixed right-4 top-4 z-30 rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm">
             Shift + Scroll to open board
           </div>
 
           <ControlTray
-            ref={controlTrayRef}
             videoRef={videoRef}
             supportsVideo={true}
-            onVideoStreamChange={setVideoStream}
+            onVideoStreamChange={handleVideoStreamChange}
+            onCameraStarted={handleCameraStarted}
+            onCameraStopped={handleCameraStopped}
             onSnapshotGlow={triggerSnapshotGlow}
           />
         </div>

@@ -2,7 +2,6 @@ import { nestedToFlat } from "@json-render/core";
 import { JSONUIProvider, Renderer, defineRegistry } from "@json-render/react";
 import { shadcnComponents } from "@json-render/shadcn";
 import { useMemo } from "react";
-import { MarkdownCards, type MarkdownCardItem } from "@/components/chat/MarkdownCards";
 import { chatCatalog } from "@/lib/json-render/chat-catalog";
 import type { TreeSpec } from "@/lib/json-render/chat-renderer";
 
@@ -16,24 +15,6 @@ const { registry: chatRegistry } = defineRegistry(chatCatalog, {
     Separator: shadcnComponents.Separator,
     Table: shadcnComponents.Table,
     Alert: shadcnComponents.Alert,
-    MarkdownCards: (componentProps: {
-      props: {
-        title?: string | null;
-        cards: Array<{ id?: string | null; title: string; markdown: string }>;
-      };
-    }) => (
-      <MarkdownCards
-        title={
-          typeof componentProps.props.title === "string"
-            ? componentProps.props.title
-            : undefined
-        }
-        cards={componentProps.props.cards.map((card) => ({
-          ...card,
-          id: card.id ?? undefined,
-        })) as MarkdownCardItem[]}
-      />
-    ),
   },
 });
 

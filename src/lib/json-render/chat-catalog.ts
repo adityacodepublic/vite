@@ -1,7 +1,6 @@
 import { defineCatalog } from "@json-render/core";
 import { schema } from "@json-render/react/schema";
 import { shadcnComponentDefinitions } from "@json-render/shadcn/catalog";
-import { markdownCardsPropsSchema } from "@/lib/json-render/chat-renderer";
 
 export const chatCatalog = defineCatalog(schema, {
   components: {
@@ -13,10 +12,6 @@ export const chatCatalog = defineCatalog(schema, {
     Separator: shadcnComponentDefinitions.Separator,
     Table: shadcnComponentDefinitions.Table,
     Alert: shadcnComponentDefinitions.Alert,
-    MarkdownCards: {
-      props: markdownCardsPropsSchema,
-      description: "Markdown cards grid with modal expansion.",
-    },
   },
   actions: {},
 });
