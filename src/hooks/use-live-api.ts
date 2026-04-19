@@ -23,6 +23,7 @@ export type UseLiveAPIResults = {
 export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   const client = useMemo(() => new GenAILiveClient(options), [options]);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
+  const pendingAudioChunksRef = useRef<Uint8Array[]>([]);
   const resumeHandleRef = useRef<string | null>(null);
   const resumableRef = useRef(false);
   const lastOutputVolumeRef = useRef(0);
@@ -70,7 +71,12 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
             }
           })
           .then(() => {
-            // Successfully added worklet
+            if (pendingAudioChunksRef.current.length > 0) {
+              audioStreamerRef.current?.resume().finally(() => {
+                const pending = pendingAudioChunksRef.current.splice(0);
+                pending.forEach((chunk) => audioStreamerRef.current?.addPCM16(chunk));
+              });
+            }
           });
       });
     }
@@ -79,6 +85,9 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   useEffect(() => {
     const onOpen = () => {
       setConnected(true);
+      audioStreamerRef.current?.resume().catch((error) => {
+        console.warn("[LiveAPI][audio-out.resume:onOpen] failed", error);
+      });
     };
 
     const onClose = () => {
@@ -95,7 +104,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       });
     };
 
-    const stopAudioStreamer = () => audioStreamerRef.current?.stop();
+    const interruptAudioStreamer = () => audioStreamerRef.current?.interrupt();
     const onSessionResumptionUpdate = (
       update: LiveServerSessionResumptionUpdate,
     ) => {
@@ -105,14 +114,25 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       setCanResume((prev) => (prev === nextCanResume ? prev : nextCanResume));
     };
 
-    const onAudio = (data: ArrayBuffer) =>
-      audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+    const onAudio = (data: ArrayBuffer) => {
+      const streamer = audioStreamerRef.current;
+      if (!streamer) {
+        pendingAudioChunksRef.current.push(new Uint8Array(data));
+        return;
+      }
+      if (streamer.context.state === "suspended") {
+        streamer.resume().catch((error) => {
+          console.warn("[LiveAPI][audio-out.resume:onAudio] failed", error);
+        });
+      }
+      streamer.addPCM16(new Uint8Array(data));
+    };
 
     client
       .on("error", onError)
       .on("open", onOpen)
       .on("close", onClose)
-      .on("interrupted", stopAudioStreamer)
+      .on("interrupted", interruptAudioStreamer)
       .on("sessionresumptionupdate", onSessionResumptionUpdate)
       .on("audio", onAudio);
 
@@ -121,7 +141,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
         .off("error", onError)
         .off("open", onOpen)
         .off("close", onClose)
-        .off("interrupted", stopAudioStreamer)
+        .off("interrupted", interruptAudioStreamer)
         .off("sessionresumptionupdate", onSessionResumptionUpdate)
         .off("audio", onAudio)
         .disconnect();

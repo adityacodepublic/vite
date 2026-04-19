@@ -149,6 +149,28 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     return Math.max(0, Math.floor(seconds * 1000));
   }
 
+  private inlineDataToArrayBuffer(data: unknown): ArrayBuffer | null {
+    if (!data) {
+      return null;
+    }
+    if (typeof data === "string") {
+      try {
+        return base64ToArrayBuffer(data);
+      } catch (error) {
+        console.warn("[LiveAPI][audio.decode] base64 decode failed", error);
+        return null;
+      }
+    }
+    if (data instanceof ArrayBuffer) {
+      return data;
+    }
+    if (ArrayBuffer.isView(data)) {
+      const view = data as ArrayBufferView;
+      return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    }
+    return null;
+  }
+
   private scheduleTokenRefresh() {
     if (this.manualDisconnect) {
       return;
@@ -558,7 +580,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     if (message.serverContent) {
       handled = true;
       const { serverContent } = message;
-      if ("interrupted" in serverContent) {
+      if (serverContent.interrupted === true) {
         this.log("server.content", "interrupted");
         this.emit("interrupted");
       }
@@ -574,14 +596,19 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
         const audioParts = parts.filter(
           (p) => p.inlineData && p.inlineData.mimeType?.startsWith("audio/pcm"),
         );
-        const base64s = audioParts.map((p) => p.inlineData?.data);
+        const audioPayloads = audioParts
+          .map((p) => ({ data: p.inlineData?.data, mimeType: p.inlineData?.mimeType }))
+          .filter((p) => Boolean(p.data));
 
         // strip the audio parts out of the modelTurn
         const otherParts = difference(parts, audioParts);
 
-        base64s.forEach((b64) => {
-          if (b64) {
-            const data = base64ToArrayBuffer(b64);
+        audioPayloads.forEach((payload) => {
+          if (payload.data) {
+            const data = this.inlineDataToArrayBuffer(payload.data);
+            if (!data) {
+              return;
+            }
             this.emit("audio", data);
             this.log(`server.audio`, `buffer (${data.byteLength})`);
           }
@@ -625,9 +652,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       }
       if (ch.mimeType.includes("image") || ch.mimeType.includes("video")) {
         hasVideo = true;
-      }
-      if (hasAudio && hasVideo) {
-        break;
       }
     }
     const message =
