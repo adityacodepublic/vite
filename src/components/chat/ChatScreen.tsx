@@ -7,6 +7,7 @@ import {
 import { useEffect, useMemo, useRef } from "react";
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { useChatStore } from "@/lib/chat/store";
+import type { ChatMessage } from "@/lib/chat/store";
 import type { ParsedRenderSpec } from "@/lib/json-render/chat-renderer";
 import { ChatSpecRenderer } from "@/lib/json-render/chat-runtime-renderer";
 import {
@@ -172,6 +173,14 @@ const toolLog = (
 const getDeclarationNames = (declarations: Array<{ name?: string }>) =>
   declarations.map((item) => item.name ?? "").filter(Boolean);
 
+type ToolWithFunctionDeclarations = {
+  functionDeclarations?: Array<{ name?: string }>;
+};
+
+type ToolExecutor = (
+  args: Record<string, unknown> | undefined,
+) => unknown | Promise<unknown>;
+
 export function ChatScreen() {
   const {
     client,
@@ -215,8 +224,9 @@ export function ChatScreen() {
   );
   const configuredDeclarationNames = useMemo(() => {
     const currentDeclarations =
-      config.tools?.find((tool) => "functionDeclarations" in tool)
-        ?.functionDeclarations ?? [];
+      ((config.tools ?? []) as ToolWithFunctionDeclarations[]).find((tool) =>
+        Array.isArray(tool.functionDeclarations),
+      )?.functionDeclarations ?? [];
     return getDeclarationNames(currentDeclarations);
   }, [config.tools]);
   const configMatchesCurrentDeclarations = useMemo(
@@ -353,7 +363,9 @@ You are a voice-first document and financial assistant.
           const toolName = fc.name ?? "unknown-tool";
           const startedAt = performance.now();
 
-          const fn = fc.name ? functionMap[fc.name] : undefined;
+          const fn = fc.name
+            ? (functionMap[fc.name] as ToolExecutor | undefined)
+            : undefined;
 
           if (!fc.name || typeof fn !== "function") {
             toolLog("error", "execute.unknown-tool", {
@@ -555,7 +567,7 @@ You are a voice-first document and financial assistant.
   return (
     <section className="w-full max-w-5xl px-4 pb-44 pt-6 md:px-8">
       <div className="space-y-3">
-        {messages.map((message) => {
+        {messages.map((message: ChatMessage) => {
           const isUser = message.role === "user";
           const bubbleClass = isUser
             ? "ml-auto w-fit max-w-[72%] rounded-2xl rounded-br-sm bg-zinc-900 px-4 py-3 text-sm text-white"

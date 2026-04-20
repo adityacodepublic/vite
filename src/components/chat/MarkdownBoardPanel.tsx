@@ -17,6 +17,7 @@ import {
   downloadMarkdownAsWord,
 } from "@/lib/chat/markdown-export";
 import { useChatStore } from "@/lib/chat/store";
+import type { MarkdownBoardCard } from "@/lib/chat/store";
 import {
   Tooltip,
   TooltipContent,
@@ -25,12 +26,37 @@ import {
 import { useToolAvailabilityStore } from "@/lib/toolcall/tool-availability";
 import { EditableMarkdownContent } from "./EditableMarkdownContent";
 
+const toAgentComponentSlug = (value: string) => {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "untitled";
+};
+
+const getMarkdownCardAgentComponentName = (index: number, title: string) =>
+  `card${index + 1}-${toAgentComponentSlug(title)}`;
+
+type ChatStoreState = ReturnType<typeof useChatStore.getState>;
+
 export function MarkdownBoardPanel() {
-  const { cards, activeCardId } = useChatStore((state) => state.markdownBoard);
-  const openMarkdownCard = useChatStore((state) => state.openMarkdownCard);
-  const closeMarkdownCard = useChatStore((state) => state.closeMarkdownCard);
-  const removeMarkdownCard = useChatStore((state) => state.removeMarkdownCard);
-  const updateMarkdownCard = useChatStore((state) => state.updateMarkdownCard);
+  const { cards, activeCardId } = useChatStore(
+    (state: ChatStoreState) => state.markdownBoard,
+  );
+  const openMarkdownCard = useChatStore(
+    (state: ChatStoreState) => state.openMarkdownCard,
+  );
+  const closeMarkdownCard = useChatStore(
+    (state: ChatStoreState) => state.closeMarkdownCard,
+  );
+  const removeMarkdownCard = useChatStore(
+    (state: ChatStoreState) => state.removeMarkdownCard,
+  );
+  const updateMarkdownCard = useChatStore(
+    (state: ChatStoreState) => state.updateMarkdownCard,
+  );
   const shouldReduceMotion = useReducedMotion();
   const activeCardContentRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -54,9 +80,22 @@ export function MarkdownBoardPanel() {
       : "Banking Tools Off";
 
   const activeCard = useMemo(
-    () => cards.find((card) => card.id === activeCardId) ?? null,
+    () =>
+      cards.find((card: MarkdownBoardCard) => card.id === activeCardId) ?? null,
     [cards, activeCardId],
   );
+  const activeCardIndex = useMemo(
+    () =>
+      cards.findIndex((card: MarkdownBoardCard) => card.id === activeCardId),
+    [cards, activeCardId],
+  );
+  const activeCardAgentComponent = useMemo(() => {
+    if (!activeCard || activeCardIndex < 0) {
+      return null;
+    }
+
+    return getMarkdownCardAgentComponentName(activeCardIndex, activeCard.title);
+  }, [activeCard, activeCardIndex]);
 
   const handleCloseCard = () => {
     setIsExportMenuOpen(false);
@@ -172,8 +211,12 @@ export function MarkdownBoardPanel() {
 
         <LayoutGroup id="markdown-board-cards">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {cards.map((card) => {
+            {cards.map((card: MarkdownBoardCard, index: number) => {
               const cardLayoutId = `markdown-card-${card.id}`;
+              const agentComponent = getMarkdownCardAgentComponentName(
+                index,
+                card.title,
+              );
               return (
                 <motion.article
                   key={card.id}
@@ -196,6 +239,9 @@ export function MarkdownBoardPanel() {
                   }}
                   role="button"
                   tabIndex={0}
+                  data-agent-component={agentComponent}
+                  data-agent-actions="click"
+                  data-agent-desc-click={`Open markdown card "${card.title}".`}
                   style={{
                     visibility: activeCardId === card.id ? "hidden" : "visible",
                   }}
@@ -294,6 +340,17 @@ export function MarkdownBoardPanel() {
                             aria-haspopup="menu"
                             aria-expanded={isExportMenuOpen}
                             onClick={() => setIsExportMenuOpen((open) => !open)}
+                            data-agent-component={
+                              activeCardAgentComponent
+                                ? `${activeCardAgentComponent}_downloadMenu`
+                                : undefined
+                            }
+                            data-agent-actions="click"
+                            data-agent-desc-click={
+                              activeCard
+                                ? `Open download options for markdown card "${activeCard.title}".`
+                                : undefined
+                            }
                             className="inline-flex items-center rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
                           >
                             <Download size={14} />
@@ -311,6 +368,17 @@ export function MarkdownBoardPanel() {
                                   void handleDownloadWord();
                                 }}
                                 disabled={isExportingWord}
+                                data-agent-component={
+                                  activeCardAgentComponent
+                                    ? `${activeCardAgentComponent}_downloadDocx`
+                                    : undefined
+                                }
+                                data-agent-actions="click"
+                                data-agent-desc-click={
+                                  activeCard
+                                    ? `Download markdown card "${activeCard.title}" as DOCX.`
+                                    : undefined
+                                }
                                 className="block w-full rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                               >
                                 {isExportingWord
@@ -324,6 +392,17 @@ export function MarkdownBoardPanel() {
                                   void handleDownloadPdf();
                                 }}
                                 disabled={isExportingPdf}
+                                data-agent-component={
+                                  activeCardAgentComponent
+                                    ? `${activeCardAgentComponent}_downloadPdf`
+                                    : undefined
+                                }
+                                data-agent-actions="click"
+                                data-agent-desc-click={
+                                  activeCard
+                                    ? `Download markdown card "${activeCard.title}" as PDF.`
+                                    : undefined
+                                }
                                 className="block w-full rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                               >
                                 {isExportingPdf
@@ -337,6 +416,17 @@ export function MarkdownBoardPanel() {
                         <button
                           type="button"
                           onClick={handleCloseCard}
+                          data-agent-component={
+                            activeCardAgentComponent
+                              ? `${activeCardAgentComponent}_close`
+                              : undefined
+                          }
+                          data-agent-actions="click"
+                          data-agent-desc-click={
+                            activeCard
+                              ? `Close markdown card "${activeCard.title}".`
+                              : undefined
+                          }
                           className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
                         >
                           Close

@@ -101,6 +101,9 @@ function FloatingCameraPreview({
               type="button"
               aria-label="Minimize camera overlay"
               onClick={onClose}
+              data-agent-component="cameraOverlay_close"
+              data-agent-actions="click"
+              data-agent-desc-click="Close the expanded camera overlay."
               className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
             >
               <Minimize2 className="size-4" />
