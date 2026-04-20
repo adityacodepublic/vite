@@ -283,6 +283,12 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
     const captureCameraSnapshot = useCallback(async () => {
       const wasConnected = connected;
       const wasWebcamStreaming = webcam.isStreaming;
+      console.log("[snapshot] capture start", {
+        source: "camera",
+        transport: "tool_response_parts",
+        connected: wasConnected,
+        webcamStreaming: wasWebcamStreaming,
+      });
 
       if (!wasConnected) {
         const didConnect = await connectVoiceMode();
@@ -333,13 +339,20 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
         const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
         const timestamp = new Date().toISOString();
 
-        client.sendRealtimeInput([{ mimeType: "image/png", data }]);
         logSnapshotSend({
           source: "camera",
           mimeType: "image/png",
           width: canvas.width,
           height: canvas.height,
           base64: data,
+        });
+        console.log("[snapshot] capture complete", {
+          source: "camera",
+          transport: "tool_response_parts",
+          mimeType: "image/png",
+          width: canvas.width,
+          height: canvas.height,
+          base64Length: data.length,
         });
         onSnapshotGlow?.();
 
@@ -350,6 +363,8 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
           height: canvas.height,
           timestamp,
           startedStreamForCapture: startedWebcamForCapture,
+          base64: data,
+          transport: "tool_response_parts" as const,
         };
       } finally {
         snapshotCaptureInFlightRef.current = false;
@@ -428,6 +443,14 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
 
     const captureScreenSnapshot = useCallback(async () => {
       const wasConnected = connected;
+      console.log("[snapshot] capture start", {
+        source: "screen",
+        transport: "tool_response_parts",
+        connected: wasConnected,
+        screenStreaming:
+          screenCapture.isStreaming &&
+          Boolean(screenCapture.stream && screenCapture.stream.active),
+      });
       if (!wasConnected) {
         const didConnect = await connectVoiceMode();
         if (!didConnect) {
@@ -481,13 +504,20 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
         const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
         const timestamp = new Date().toISOString();
 
-        client.sendRealtimeInput([{ mimeType: "image/png", data }]);
         logSnapshotSend({
           source: "screen",
           mimeType: "image/png",
           width: canvas.width,
           height: canvas.height,
           base64: data,
+        });
+        console.log("[snapshot] capture complete", {
+          source: "screen",
+          transport: "tool_response_parts",
+          mimeType: "image/png",
+          width: canvas.width,
+          height: canvas.height,
+          base64Length: data.length,
         });
         onSnapshotGlow?.();
 
@@ -498,6 +528,8 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
           height: canvas.height,
           timestamp,
           startedStreamForCapture,
+          base64: data,
+          transport: "tool_response_parts" as const,
         };
       } finally {
         snapshotCaptureInFlightRef.current = false;

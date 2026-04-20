@@ -257,7 +257,7 @@ const coreDeclarations: FunctionDeclaration[] = [
   {
     name: "capture_snapshot",
     description:
-      "Capture a high-quality snapshot of screen or camera feed and get its image. Use source 'screen' for a native desktop screenshot, or source 'camera' for capture from the camera feed. Wait for the image to be recieved by you (as it can take a few seconds to reach you) before responding.",
+      "Capture a high-quality snapshot of screen or camera feed and receive its image through the tool response itself. Use source 'screen' for a native desktop screenshot, or source 'camera' for capture from the camera feed. After calling this tool, inspect the returned image from the tool response before answering.",
     parameters: {
       type: Type.OBJECT,
       properties: {

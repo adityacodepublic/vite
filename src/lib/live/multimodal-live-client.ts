@@ -683,6 +683,18 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       toolResponse.functionResponses &&
       toolResponse.functionResponses.length
     ) {
+      console.log("[LiveAPI][toolResponse] sending", {
+        functionResponseCount: toolResponse.functionResponses.length,
+        responses: toolResponse.functionResponses.map((response) => ({
+          id: response.id,
+          name: response.name,
+          partCount: response.parts?.length ?? 0,
+          partMimeTypes:
+            response.parts?.map(
+              (part) => part.inlineData?.mimeType ?? part.fileData?.mimeType ?? "unknown",
+            ) ?? [],
+        })),
+      });
       this.session?.sendToolResponse({
         functionResponses: toolResponse.functionResponses,
       });

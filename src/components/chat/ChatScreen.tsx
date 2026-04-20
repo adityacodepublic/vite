@@ -1,4 +1,5 @@
 import {
+  type FunctionResponse,
   type LiveServerContent,
   type LiveServerToolCall,
   Modality,
@@ -29,6 +30,97 @@ function extractText(content: LiveServerContent): string {
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+type SnapshotToolResult = {
+  source: "screen" | "camera";
+  mimeType: string;
+  width: number;
+  height: number;
+  timestamp: string;
+  startedStreamForCapture: boolean;
+  base64: string;
+  transport: "tool_response_parts";
+};
+
+const isSnapshotToolResult = (value: unknown): value is SnapshotToolResult => {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    (value.source === "screen" || value.source === "camera") &&
+    typeof value.mimeType === "string" &&
+    typeof value.width === "number" &&
+    typeof value.height === "number" &&
+    typeof value.timestamp === "string" &&
+    typeof value.startedStreamForCapture === "boolean" &&
+    typeof value.base64 === "string" &&
+    value.transport === "tool_response_parts"
+  );
+};
+
+const buildToolResponse = (
+  id: string | undefined,
+  name: string | undefined,
+  output: unknown,
+): FunctionResponse => {
+  if (name === "capture_snapshot" && isSnapshotToolResult(output)) {
+    const metadata = {
+      source: output.source,
+      mimeType: output.mimeType,
+      width: output.width,
+      height: output.height,
+      timestamp: output.timestamp,
+      startedStreamForCapture: output.startedStreamForCapture,
+      transport: output.transport,
+    };
+
+    console.log("[ToolCall][capture_snapshot] built tool response parts", {
+      callId: id ?? "unknown-call-id",
+      mimeType: output.mimeType,
+      width: output.width,
+      height: output.height,
+      base64Length: output.base64.length,
+      response: metadata,
+    });
+
+    return {
+      id,
+      name,
+      response: { output: metadata },
+      parts: [
+        {
+          inlineData: {
+            mimeType: output.mimeType,
+            data: output.base64,
+          },
+        },
+      ],
+    };
+  }
+
+  return {
+    id,
+    name,
+    response: { output },
+  };
+};
+
+const getToolDisplayOutput = (name: string | undefined, output: unknown) => {
+  if (name === "capture_snapshot" && isSnapshotToolResult(output)) {
+    return {
+      source: output.source,
+      mimeType: output.mimeType,
+      width: output.width,
+      height: output.height,
+      timestamp: output.timestamp,
+      startedStreamForCapture: output.startedStreamForCapture,
+      transport: output.transport,
+    };
+  }
+
+  return output;
+};
 
 const isRenderToolResult = (value: unknown): value is ParsedRenderSpec => {
   if (!isObject(value)) {
@@ -228,6 +320,9 @@ You are a voice-first document and financial assistant.
     const onContent = (content: LiveServerContent) => {
       const text = extractText(content);
       if (text.trim()) {
+        console.log("[LiveAPI][modelText]", {
+          text,
+        });
         addAssistantTextChunk(text);
       }
     };
@@ -266,6 +361,12 @@ You are a voice-first document and financial assistant.
           }
 
           try {
+            if (fc.name === "capture_snapshot") {
+              console.log("[ToolCall][capture_snapshot] tool call received", {
+                callId,
+                args: fc.args,
+              });
+            }
             toolLog("info", "execute.start", {
               callId,
               toolName,
@@ -358,14 +459,10 @@ You are a voice-first document and financial assistant.
                 toolName,
                 outputPreview: toLogPreview(output),
               });
-              addToolResult(fc.name, output);
+              addToolResult(fc.name, getToolDisplayOutput(fc.name, output));
             }
 
-            return {
-              id: fc.id,
-              name: fc.name,
-              response: { output },
-            };
+            return buildToolResponse(fc.id, fc.name, output);
           } catch (error) {
             const message =
               error instanceof Error ? error.message : "Tool call failed.";
@@ -392,6 +489,19 @@ You are a voice-first document and financial assistant.
 
       try {
         client.sendToolResponse({ functionResponses });
+        console.log("[ToolCall] sendToolResponse success", {
+          functionResponseCount: functionResponses.length,
+          responses: functionResponses.map((response) => ({
+            id: response.id,
+            name: response.name,
+            hasParts: Boolean(response.parts?.length),
+            partCount: response.parts?.length ?? 0,
+            partMimeTypes:
+              response.parts?.map((part) => part.inlineData?.mimeType ?? "unknown") ??
+              [],
+            outputPreview: toLogPreview(response.response),
+          })),
+        });
         functionResponses.forEach((response) => {
           toolLog("info", "response.sent", {
             callId: response.id ?? "unknown-call-id",
@@ -400,6 +510,10 @@ You are a voice-first document and financial assistant.
           });
         });
       } catch (error) {
+        console.log("[ToolCall] sendToolResponse failed", {
+          payloadPreview: toLogPreview({ functionResponses }),
+          error,
+        });
         toolLog("error", "response.send-failed", {
           payloadPreview: toLogPreview({ functionResponses }),
           error,

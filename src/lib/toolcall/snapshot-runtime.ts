@@ -7,6 +7,8 @@ export type SnapshotResult = {
   height: number;
   timestamp: string;
   startedStreamForCapture: boolean;
+  base64: string;
+  transport: "tool_response_parts";
 };
 
 type SnapshotHandler = (args: {
