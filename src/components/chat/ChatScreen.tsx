@@ -3,12 +3,16 @@ import {
   type LiveServerToolCall,
   Modality,
 } from "@google/genai";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
 import { useChatStore } from "@/lib/chat/store";
 import type { ParsedRenderSpec } from "@/lib/json-render/chat-renderer";
 import { ChatSpecRenderer } from "@/lib/json-render/chat-runtime-renderer";
-import { declaration, functionsmap } from "@/lib/toolcall/declarations";
+import {
+  getFunctionDeclarations,
+  getFunctionMap,
+} from "@/lib/toolcall/declarations";
+import { useToolAvailabilityStore } from "@/lib/toolcall/tool-availability";
 import { AltairChart } from "./AltairChart";
 import { ChatRenderErrorBoundary } from "./ChatRenderErrorBoundary";
 import { AttachmentProgressCircle } from "./AttachmentProgressCircle";
@@ -73,8 +77,12 @@ const toolLog = (
   console.log(prefix, details);
 };
 
+const getDeclarationNames = (declarations: Array<{ name?: string }>) =>
+  declarations.map((item) => item.name ?? "").filter(Boolean);
+
 export function ChatScreen() {
-  const { client, setConfig, setModel } = useLiveAPIContext();
+  const { client, config, connected, connect, disconnect, setConfig, setModel } =
+    useLiveAPIContext();
   const {
     messages,
     addAssistantTextChunk,
@@ -84,10 +92,47 @@ export function ChatScreen() {
     addJsonRenderSpec,
     addSystemMessage,
   } = useChatStore();
+  const bankingEnabled = useToolAvailabilityStore(
+    (state) => state.bankingEnabled,
+  );
+  const setApplyingBankingToggle = useToolAvailabilityStore(
+    (state) => state.setApplyingBankingToggle,
+  );
+  const functionDeclarations = useMemo(
+    () => getFunctionDeclarations({ bankingEnabled }),
+    [bankingEnabled],
+  );
+  const functionMap = useMemo(
+    () => getFunctionMap({ bankingEnabled }),
+    [bankingEnabled],
+  );
+  const previousBankingEnabledRef = useRef(bankingEnabled);
+  const hasMountedRef = useRef(false);
+  const reconnectTargetRef = useRef<boolean | null>(null);
+  const reconnectInFlightRef = useRef(false);
+  const activeDeclarationNames = useMemo(
+    () => getDeclarationNames(functionDeclarations),
+    [functionDeclarations],
+  );
+  const configuredDeclarationNames = useMemo(() => {
+    const currentDeclarations =
+      config.tools?.find((tool) => "functionDeclarations" in tool)
+        ?.functionDeclarations ?? [];
+    return getDeclarationNames(currentDeclarations);
+  }, [config.tools]);
+  const configMatchesCurrentDeclarations = useMemo(
+    () =>
+      activeDeclarationNames.length === configuredDeclarationNames.length &&
+      activeDeclarationNames.every(
+        (name, index) => name === configuredDeclarationNames[index],
+      ),
+    [activeDeclarationNames, configuredDeclarationNames],
+  );
 
   useEffect(() => {
     console.log("[ToolConfig][render_ui.declaration]", {
-      declaration: declaration.find((item) => item.name === "render_ui"),
+      declaration: functionDeclarations.find((item) => item.name === "render_ui"),
+      bankingEnabled,
     });
 
     setModel(MODEL_NAME);
@@ -110,9 +155,74 @@ You are a voice-first document and financial assistant.
           },
         ],
       },
-      tools: [{ functionDeclarations: declaration }],
+      tools: [{ functionDeclarations }],
     });
-  }, [setConfig, setModel]);
+  }, [bankingEnabled, functionDeclarations, setConfig, setModel]);
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      previousBankingEnabledRef.current = bankingEnabled;
+      return;
+    }
+
+    if (previousBankingEnabledRef.current === bankingEnabled) {
+      return;
+    }
+
+    previousBankingEnabledRef.current = bankingEnabled;
+
+    if (!connected) {
+      reconnectTargetRef.current = null;
+      setApplyingBankingToggle(false);
+      return;
+    }
+    reconnectTargetRef.current = bankingEnabled;
+    setApplyingBankingToggle(true);
+  }, [bankingEnabled, connected, setApplyingBankingToggle]);
+
+  useEffect(() => {
+    if (
+      reconnectInFlightRef.current ||
+      reconnectTargetRef.current !== bankingEnabled ||
+      !configMatchesCurrentDeclarations
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    reconnectInFlightRef.current = true;
+
+    const reconnectWithUpdatedTools = async () => {
+      try {
+        await disconnect();
+        if (cancelled) {
+          return;
+        }
+        await connect();
+      } catch (error) {
+        console.error("[ToolConfig][banking-toggle.reconnect] failed", error);
+      } finally {
+        reconnectInFlightRef.current = false;
+        reconnectTargetRef.current = null;
+        if (!cancelled) {
+          setApplyingBankingToggle(false);
+        }
+      }
+    };
+
+    void reconnectWithUpdatedTools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bankingEnabled,
+    configMatchesCurrentDeclarations,
+    connect,
+    disconnect,
+    setApplyingBankingToggle,
+  ]);
 
   useEffect(() => {
     const onContent = (content: LiveServerContent) => {
@@ -139,7 +249,7 @@ You are a voice-first document and financial assistant.
           const toolName = fc.name ?? "unknown-tool";
           const startedAt = performance.now();
 
-          const fn = fc.name ? functionsmap[fc.name] : undefined;
+          const fn = fc.name ? functionMap[fc.name] : undefined;
 
           if (!fc.name || typeof fn !== "function") {
             toolLog("error", "execute.unknown-tool", {
@@ -315,6 +425,7 @@ You are a voice-first document and financial assistant.
     addToolResult,
     client,
     finalizeAssistantText,
+    functionMap,
   ]);
 
   return (

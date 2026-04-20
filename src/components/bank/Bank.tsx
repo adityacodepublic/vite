@@ -1,10 +1,13 @@
 "use client";
 import vegaEmbed from "vega-embed";
-import { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import { LiveServerToolCall, Modality } from "@google/genai";
 
 import { useLiveAPIContext } from "@/contexts/LiveAPIContext";
-import { declaration, functionsmap } from "@/lib/toolcall/declarations";
+import {
+  getFunctionDeclarations,
+  getFunctionMap,
+} from "@/lib/toolcall/declarations";
 
 // Create server parameters for stdio connection
 // const serverParams = new StdioClientTransport({
@@ -18,8 +21,16 @@ import { declaration, functionsmap } from "@/lib/toolcall/declarations";
 // });
 
 function BankDetailsComponent() {
+  const declaration = useMemo(
+    () => getFunctionDeclarations({ bankingEnabled: true }),
+    [],
+  );
+  const functionsmap = useMemo(
+    () => getFunctionMap({ bankingEnabled: true }),
+    [],
+  );
   const [tool, setTool] = useState<string | null>(null);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<unknown>(null);
 
   const [name, setName] = useState("");
   const [trigger, setTrigger] = useState(false);
@@ -58,12 +69,12 @@ function BankDetailsComponent() {
         { functionDeclarations: declaration },
       ],
     });
-  }, [setConfig]);
+  }, [declaration, setConfig, setModel]);
 
   useEffect(() => {
     const onToolCall = async (toolCall: LiveServerToolCall) => {
       console.log(`got toolcall`, toolCall);
-      let response: any;
+      let response: unknown;
       const fc = toolCall.functionCalls?.find((fc) =>
         declaration.some((decl) => decl.name === fc.name),
       );
@@ -100,7 +111,7 @@ function BankDetailsComponent() {
     return () => {
       client.off("toolcall", onToolCall);
     };
-  }, [client, trigger]); // Re-fetch when shouldFetch or name changes
+  }, [client, declaration, functionsmap, trigger]); // Re-fetch when shouldFetch or name changes
 
   const embedRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +134,7 @@ function BankDetailsComponent() {
       });
     }
     setData(null);
-  }, [embedRef, data]);
+  }, [data, tool]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

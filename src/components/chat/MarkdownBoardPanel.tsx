@@ -17,6 +17,12 @@ import {
   downloadMarkdownAsWord,
 } from "@/lib/chat/markdown-export";
 import { useChatStore } from "@/lib/chat/store";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useToolAvailabilityStore } from "@/lib/toolcall/tool-availability";
 import { EditableMarkdownContent } from "./EditableMarkdownContent";
 
 export function MarkdownBoardPanel() {
@@ -31,6 +37,21 @@ export function MarkdownBoardPanel() {
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const bankingEnabled = useToolAvailabilityStore(
+    (state) => state.bankingEnabled,
+  );
+  const isApplyingBankingToggle = useToolAvailabilityStore(
+    (state) => state.isApplyingBankingToggle,
+  );
+  const setBankingEnabled = useToolAvailabilityStore(
+    (state) => state.setBankingEnabled,
+  );
+
+  const bankingToggleLabel = isApplyingBankingToggle
+    ? "Updating..."
+    : bankingEnabled
+      ? "Banking Tools On"
+      : "Banking Tools Off";
 
   const activeCard = useMemo(
     () => cards.find((card) => card.id === activeCardId) ?? null,
@@ -119,6 +140,33 @@ export function MarkdownBoardPanel() {
         <div className="mb-4 mt-2 flex items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold text-zinc-900">Card Board</h2>
+          </div>
+          <div className="flex items-center justify-end">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  disabled={isApplyingBankingToggle}
+                  aria-label={bankingToggleLabel}
+                  onClick={() => setBankingEnabled(!bankingEnabled)}
+                  className={
+                    bankingEnabled
+                      ? "inline-flex size-11 items-center justify-center rounded-full border border-emerald-700 bg-emerald-600 text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+                      : "inline-flex size-11 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-zinc-500 shadow-sm transition hover:border-zinc-300 hover:bg-white hover:text-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:cursor-not-allowed disabled:opacity-70"
+                  }
+                >
+                  <img
+                    src="/icons/bank.svg"
+                    alt=""
+                    aria-hidden="true"
+                    className="size-6 object-contain"
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={8}>
+                {bankingToggleLabel}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 

@@ -32,16 +32,9 @@ const RENDER_UI_DOC = [
   RENDER_UI_COMPONENTS_DOC,
 ].join("\n");
 
-// const RENDER_UI_DOC = [
-//   "Render structured chat UI from a JSON string payload.",
-//   "Send `spec_json` as a JSON string. Accepted forms: { spec: { root, state? } } or { root, state? }.",
-//   "Use nested tree nodes only (root -> children). Do not send JSONL patch lines or flat /elements maps.",
-//   "Each node should look like: { type, props?, children? }. `type` must be one of the supported components below.",
-//   "If the user asks to render/demo components without full data, fill missing required fields with sensible sample values using your best judgment. Or ask the user UG",
-//   "Prefer producing a valid render payload over asking follow-up questions when intent is component preview/demo.",
-//   "Never leave required component fields empty or omitted.",
-//   chatCatalog.prompt(),
-// ].join("\n");
+export type ToolAvailabilityOptions = {
+  bankingEnabled?: boolean;
+};
 
 function parseRenderUiInput(specJson: string): unknown {
   const parsed = JSON.parse(specJson) as unknown;
@@ -97,10 +90,6 @@ const coreFunctionsMap: Record<string, (...args: never[]) => unknown> = {
         },
       };
     }
-  },
-  sendToUser: (args: { text: string }) => {
-    console.log("[sendToUser]", args.text);
-    return { delivered: true, text: args.text };
   },
   markdown_board: (args: {
     command: "ls" | "read" | "create" | "full_write" | "delete";
@@ -185,10 +174,15 @@ const coreFunctionsMap: Record<string, (...args: never[]) => unknown> = {
   },
 };
 
-export const functionsmap: Record<string, (...args: never[]) => unknown> = {
-  ...coreFunctionsMap,
-  ...bankingFunctionsMap,
-};
+const devOnlyFunctionsMap: Record<string, (...args: never[]) => unknown> =
+  import.meta.env.DEV
+    ? {
+        sendToUser: (args: { text: string }) => {
+          console.log("[sendToUser]", args.text);
+          return { delivered: true, text: args.text };
+        },
+      }
+    : {};
 
 const coreDeclarations: FunctionDeclaration[] = [
   {
@@ -219,20 +213,6 @@ const coreDeclarations: FunctionDeclaration[] = [
         },
       },
       required: ["spec_json"],
-    },
-  },
-  {
-    name: "sendToUser",
-    description: "Send a direct plain-text message to the user channel.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        text: {
-          type: Type.STRING,
-          description: "Message text to send to the user.",
-        },
-      },
-      required: ["text"],
     },
   },
   {
@@ -293,7 +273,41 @@ const coreDeclarations: FunctionDeclaration[] = [
   },
 ];
 
-export const declaration: FunctionDeclaration[] = [
-  ...coreDeclarations,
-  ...bankingDeclarations,
-];
+const devOnlyDeclarations: FunctionDeclaration[] = import.meta.env.DEV
+  ? [
+      {
+        name: "sendToUser",
+        description: "Send a direct plain-text message to the user channel.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            text: {
+              type: Type.STRING,
+              description: "Message text to send to the user.",
+            },
+          },
+          required: ["text"],
+        },
+      },
+    ]
+  : [];
+
+export function getFunctionMap(
+  options: ToolAvailabilityOptions = {},
+): Record<string, (...args: never[]) => unknown> {
+  return {
+    ...coreFunctionsMap,
+    ...devOnlyFunctionsMap,
+    ...(options.bankingEnabled ? bankingFunctionsMap : {}),
+  };
+}
+
+export function getFunctionDeclarations(
+  options: ToolAvailabilityOptions = {},
+): FunctionDeclaration[] {
+  return [
+    ...coreDeclarations,
+    ...devOnlyDeclarations,
+    ...(options.bankingEnabled ? bankingDeclarations : []),
+  ];
+}

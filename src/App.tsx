@@ -84,28 +84,33 @@ function FloatingCameraPreview({
   }
 
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-40">
-      <div className="pointer-events-auto w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2">
-          <p className="text-sm font-semibold text-zinc-900">Camera</p>
-          <button
-            type="button"
-            aria-label="Minimize camera overlay"
-            onClick={onClose}
-            className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
-          >
-            <Minimize2 className="size-4" />
-          </button>
-        </div>
-        <div className="bg-zinc-950 p-2">
-          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-black">
-            <video
-              ref={overlayVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="aspect-video w-full object-cover"
-            />
+    <div className="pointer-events-none fixed inset-0 z-40">
+      <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 flex items-center justify-center p-4 md:p-6 lg:p-10">
+        <div className="pointer-events-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-white/60 bg-white/92 shadow-[0_24px_80px_rgba(15,23,42,0.24)] backdrop-blur-xl md:max-h-[calc(100vh-3rem)] lg:max-h-[calc(100vh-5rem)]">
+          <div className="flex items-center justify-between border-b border-zinc-200/80 px-4 py-3 md:px-5">
+            <p className="text-sm font-semibold text-zinc-900 md:text-base">
+              Camera
+            </p>
+            <button
+              type="button"
+              aria-label="Minimize camera overlay"
+              onClick={onClose}
+              className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              <Minimize2 className="size-4" />
+            </button>
+          </div>
+          <div className="flex-1 bg-[linear-gradient(135deg,rgba(241,245,249,0.92),rgba(226,232,240,0.72))] p-3 md:p-5">
+            <div className="flex h-full max-h-full items-center justify-center overflow-hidden rounded-[1.5rem] border border-zinc-200/70 bg-zinc-950 p-2 md:p-3">
+              <video
+                ref={overlayVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="aspect-video max-h-full w-full rounded-[1.1rem] bg-black object-cover"
+              />
+            </div>
           </div>
         </div>
       </div>
