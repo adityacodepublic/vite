@@ -58,9 +58,7 @@ const coreFunctionsMap: Record<string, (...args: never[]) => unknown> = {
     if (candidate && typeof candidate === "object") {
       return JSON.stringify(candidate);
     }
-    throw new Error(
-      "render_altair requires chart JSON in json_graph",
-    );
+    throw new Error("render_altair requires chart JSON in json_graph");
   },
   render_ui: (args: { spec_json: string }) => {
     try {
@@ -218,7 +216,7 @@ const coreDeclarations: FunctionDeclaration[] = [
   {
     name: "markdown_board",
     description:
-      "Manage the markdown board cards directly. Use this tool for all board/card operations instead of render_ui. 'Scan' means: when the user asks you to inspect something visible on screen, camera, uploaded media, shared media, or other provided data, gather the relevant observations and store them in a markdown board card. Use command 'ls' first to inspect the board state; it returns all cards with id and title and also tells you which card is currently open. Use 'read' before revising an existing card. Use 'create' to add a new card. Use 'full_write' only when intentionally replacing an entire card body, optionally with a new title. Use 'delete' to remove an obsolete card. Prefer preserving useful existing notes unless the user explicitly asks to overwrite or remove them.",
+      "Manage the markdown board cards directly. Use this tool for all board/card operations instead of render_ui. 'Scan' means: when the user asks you to inspect something visible on screen, camera, uploaded media, shared media, or other provided data, gather the relevant observations and store them in a markdown board card. Use command 'ls' first to inspect the board state; it returns all cards with id and title and also tells you which card is currently opened by the user (use this if user is telling something about currently opened or this card, out of context). Use 'read' before revising an existing card. Use 'create' to add a new card. Use 'full_write' only when intentionally replacing an entire card body, optionally with a new title. Use 'delete' to remove an obsolete card. Prefer preserving useful existing notes unless the user explicitly asks to overwrite or remove them.",
     parameters: {
       type: Type.OBJECT,
       properties: {

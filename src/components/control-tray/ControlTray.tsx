@@ -78,6 +78,7 @@ export type ControlTrayHandle = {
 };
 
 const CAMERA_SNAPSHOT_MAX_LONG_EDGE = 1600;
+const AGENT_CAMERA_PREVIEW_MS = 5000;
 
 type MediaStreamButtonProps = {
   isStreaming: boolean;
@@ -221,6 +222,42 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
 
     const prepareCameraFrameLogging = useCallback(async () => {}, []);
 
+    const delay = useCallback(
+      (ms: number) =>
+        new Promise((resolve) => window.setTimeout(resolve, ms)),
+      [],
+    );
+
+    const ensureVideoPlayback = useCallback(async (streamOverride?: MediaStream | null) => {
+      const targetStream = streamOverride ?? activeVideoStream;
+      const video = videoRef.current;
+      if (!video || !targetStream) {
+        return;
+      }
+
+      if (video.srcObject !== targetStream) {
+        video.srcObject = targetStream;
+      }
+
+      try {
+        await video.play();
+      } catch (error) {
+        console.warn("[ControlTray] Unable to resume local video preview", error);
+      }
+    }, [activeVideoStream, videoRef]);
+
+    const presentCameraPreviewForSnapshot = useCallback(async (stream: MediaStream) => {
+      onCameraStarted("agent_snapshot");
+      await delay(0);
+      await ensureVideoPlayback(stream);
+      console.log("[snapshot] preview alignment window", {
+        source: "camera",
+        durationMs: AGENT_CAMERA_PREVIEW_MS,
+      });
+      await delay(AGENT_CAMERA_PREVIEW_MS);
+      await ensureVideoPlayback(stream);
+    }, [delay, ensureVideoPlayback, onCameraStarted]);
+
     const estimateBytesFromBase64 = useCallback((base64: string) => {
       const padding = base64.endsWith("==")
         ? 2
@@ -265,24 +302,66 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       [],
     );
 
-    const waitForVideoFrame = useCallback(async () => {
-      const startedAt = performance.now();
+    const waitForStreamFrame = useCallback(async (stream: MediaStream) => {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
 
-      while (performance.now() - startedAt < 4000) {
-        const video = videoRef.current;
-        if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-          return video;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = window.setTimeout(() => {
+            cleanup();
+            reject(new Error("Stream frame is not ready yet."));
+          }, 4000);
+
+          const cleanup = () => {
+            window.clearTimeout(timeoutId);
+            video.removeEventListener("loadedmetadata", onLoadedMetadata);
+            video.removeEventListener("error", onError);
+          };
+
+          const onLoadedMetadata = () => {
+            cleanup();
+            resolve();
+          };
+
+          const onError = () => {
+            cleanup();
+            reject(new Error("Unable to read stream metadata."));
+          };
+
+          video.addEventListener("loadedmetadata", onLoadedMetadata, {
+            once: true,
+          });
+          video.addEventListener("error", onError, { once: true });
+        });
+
+        try {
+          await video.play();
+        } catch {
+          // Some browsers block autoplay; frame dimensions can still be available.
         }
 
-        await new Promise((resolve) => window.setTimeout(resolve, 100));
-      }
+        const startedAt = performance.now();
+        while (performance.now() - startedAt < 4000) {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            return video;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+        }
 
-      throw new Error("Camera frame is not ready yet. Please try again.");
-    }, [videoRef]);
+        throw new Error("Stream frame is not ready yet. Please try again.");
+      } catch (error) {
+        video.srcObject = null;
+        throw error;
+      }
+    }, []);
 
     const captureCameraSnapshot = useCallback(async () => {
       const wasConnected = connected;
-      const wasWebcamStreaming = webcam.isStreaming;
+      const wasWebcamStreaming =
+        webcam.isStreaming && Boolean(webcam.stream && webcam.stream.active);
       console.log("[snapshot] capture start", {
         source: "camera",
         transport: "tool_response_parts",
@@ -300,21 +379,33 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       }
 
       let startedWebcamForCapture = false;
+      let cameraStream =
+        wasWebcamStreaming && webcam.stream && webcam.stream.active
+          ? webcam.stream
+          : null;
 
-      if (!wasWebcamStreaming) {
+      if (!cameraStream) {
         const started = await startWebcam("agent_snapshot");
         if (!started) {
           throw new Error(
             "Webcam is not active. Ask the user to turn on camera.",
           );
         }
+        cameraStream = await webcam.start();
         startedWebcamForCapture = true;
       }
 
+      if (!cameraStream) {
+        throw new Error("Webcam stream is unavailable for snapshot capture.");
+      }
+
+      await presentCameraPreviewForSnapshot(cameraStream);
+
       snapshotCaptureInFlightRef.current = true;
+      let captureVideo: HTMLVideoElement | null = null;
 
       try {
-        const video = await waitForVideoFrame();
+        captureVideo = await waitForStreamFrame(cameraStream);
         const canvas = renderCanvasRef.current;
 
         if (!canvas) {
@@ -322,8 +413,8 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
         }
 
         const size = getScaledSize(
-          video.videoWidth,
-          video.videoHeight,
+          captureVideo.videoWidth,
+          captureVideo.videoHeight,
           CAMERA_SNAPSHOT_MAX_LONG_EDGE,
         );
         canvas.width = size.width;
@@ -334,7 +425,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
           throw new Error("Snapshot canvas context is unavailable.");
         }
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(captureVideo, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/png");
         const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
         const timestamp = new Date().toISOString();
@@ -367,79 +458,33 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
           transport: "tool_response_parts" as const,
         };
       } finally {
+        if (captureVideo) {
+          captureVideo.pause();
+          captureVideo.srcObject = null;
+        }
         snapshotCaptureInFlightRef.current = false;
+        if (!startedWebcamForCapture) {
+          void ensureVideoPlayback(cameraStream);
+        }
         if (startedWebcamForCapture) {
           stopWebcam();
         }
       }
     }, [
-      client,
       connected,
       connectVoiceMode,
+      ensureVideoPlayback,
       getScaledSize,
       logSnapshotSend,
       startWebcam,
       stopWebcam,
-      waitForVideoFrame,
+      videoRef,
+      waitForStreamFrame,
       webcam.isStreaming,
+      webcam.stream,
       onSnapshotGlow,
+      presentCameraPreviewForSnapshot,
     ]);
-
-    const waitForStreamFrame = useCallback(async (stream: MediaStream) => {
-      const video = document.createElement("video");
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const timeoutId = window.setTimeout(() => {
-            cleanup();
-            reject(new Error("Screen stream frame is not ready yet."));
-          }, 4000);
-
-          const cleanup = () => {
-            window.clearTimeout(timeoutId);
-            video.removeEventListener("loadedmetadata", onLoadedMetadata);
-            video.removeEventListener("error", onError);
-          };
-
-          const onLoadedMetadata = () => {
-            cleanup();
-            resolve();
-          };
-
-          const onError = () => {
-            cleanup();
-            reject(new Error("Unable to read screen stream metadata."));
-          };
-
-          video.addEventListener("loadedmetadata", onLoadedMetadata, {
-            once: true,
-          });
-          video.addEventListener("error", onError, { once: true });
-        });
-
-        try {
-          await video.play();
-        } catch {
-          // Some browsers block autoplay; frame dimensions can still be available.
-        }
-
-        const startedAt = performance.now();
-        while (performance.now() - startedAt < 4000) {
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            return video;
-          }
-          await new Promise((resolve) => window.setTimeout(resolve, 50));
-        }
-
-        throw new Error("Screen frame is not ready yet. Please try again.");
-      } catch (error) {
-        video.srcObject = null;
-        throw error;
-      }
-    }, []);
 
     const captureScreenSnapshot = useCallback(async () => {
       const wasConnected = connected;
@@ -482,24 +527,25 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       }
 
       snapshotCaptureInFlightRef.current = true;
+      let captureVideo: HTMLVideoElement | null = null;
 
       try {
-        const video = await waitForStreamFrame(stream);
+        captureVideo = await waitForStreamFrame(stream);
         const canvas = renderCanvasRef.current;
 
         if (!canvas) {
           throw new Error("Snapshot canvas is unavailable.");
         }
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        canvas.width = captureVideo.videoWidth;
+        canvas.height = captureVideo.videoHeight;
 
         const ctx = canvas.getContext("2d");
         if (!ctx) {
           throw new Error("Snapshot canvas context is unavailable.");
         }
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(captureVideo, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/png");
         const data = dataUrl.slice(dataUrl.indexOf(",") + 1);
         const timestamp = new Date().toISOString();
@@ -532,6 +578,10 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
           transport: "tool_response_parts" as const,
         };
       } finally {
+        if (captureVideo) {
+          captureVideo.pause();
+          captureVideo.srcObject = null;
+        }
         snapshotCaptureInFlightRef.current = false;
         if (startedStreamForCapture && stream) {
           stream.getTracks().forEach((track) => track.stop());
@@ -629,9 +679,6 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
     const handleRemoveAttachment = (id: string) => {
       setAttachments((prev) => prev.filter((item) => item.id !== id));
     };
-
-    const delay = (ms: number) =>
-      new Promise((resolve) => window.setTimeout(resolve, ms));
 
     const processAttachmentBatch = async (batch: TrayAttachment[]) => {
       let successCount = 0;
@@ -845,6 +892,10 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
         videoRef.current.srcObject = activeVideoStream;
       }
 
+      if (activeVideoStream) {
+        void ensureVideoPlayback();
+      }
+
       let timeoutId = -1;
 
       function sendVideoFrame() {
@@ -893,6 +944,7 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
       activeVideoStream,
       client,
       connected,
+      ensureVideoPlayback,
       videoRef,
     ]);
 
