@@ -994,7 +994,15 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
             className="hidden"
             onChange={handleSelectAttachments}
           />
-          <PromptInputTextarea placeholder="Turn on the voice mode & Ask me anything..." />
+          <PromptInputTextarea
+            placeholder="Turn on the voice mode & Ask me anything..."
+            data-agent-component="chatTray_messageBox"
+            data-agent-actions="click,full_write,key"
+            data-agent-desc-click="Focus the main chat message box."
+            data-agent-desc-full-write="Replace the current chat prompt with the provided text."
+            data-agent-desc-key="Send a supported key to the chat message box."
+            data-agent-key-allowed="Enter"
+          />
           <AttachmentChips
             attachments={attachments}
             onRemove={handleRemoveAttachment}
@@ -1038,6 +1046,9 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
                     ref={connectButtonRef}
                     onClick={connected ? disconnect : connect}
                     aria-label="Voice Mode"
+                    data-agent-component="controlTray_voiceMode"
+                    data-agent-actions="click"
+                    data-agent-desc-click="Toggle voice mode. Click to connect when disconnected or disconnect when connected."
                     className="flex items-center justify-center  bg-background text-secondary-foreground hover:bg-secondary h-10 w-10 rounded-full font-semibold focus-visible:outline-black"
                   >
                     {connected ? (
@@ -1128,6 +1139,9 @@ const ControlTray = forwardRef<ControlTrayHandle, ControlTrayProps>(
                 className="h-10 w-10 rounded-full"
                 onClick={handleSubmit}
                 disabled={!connected}
+                data-agent-component="chatTray_sendButton"
+                data-agent-actions="click"
+                data-agent-desc-click="Send the current chat message."
               >
                 {isLoading ? (
                   <Square className="size-5.5 fill-current" />

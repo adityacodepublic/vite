@@ -173,8 +173,15 @@ const getDeclarationNames = (declarations: Array<{ name?: string }>) =>
   declarations.map((item) => item.name ?? "").filter(Boolean);
 
 export function ChatScreen() {
-  const { client, config, connected, connect, disconnect, setConfig, setModel } =
-    useLiveAPIContext();
+  const {
+    client,
+    config,
+    connected,
+    connect,
+    disconnect,
+    setConfig,
+    setModel,
+  } = useLiveAPIContext();
   const {
     messages,
     addAssistantTextChunk,
@@ -223,7 +230,9 @@ export function ChatScreen() {
 
   useEffect(() => {
     console.log("[ToolConfig][render_ui.declaration]", {
-      declaration: functionDeclarations.find((item) => item.name === "render_ui"),
+      declaration: functionDeclarations.find(
+        (item) => item.name === "render_ui",
+      ),
       bankingEnabled,
     });
 
@@ -497,8 +506,9 @@ You are a voice-first document and financial assistant.
             hasParts: Boolean(response.parts?.length),
             partCount: response.parts?.length ?? 0,
             partMimeTypes:
-              response.parts?.map((part) => part.inlineData?.mimeType ?? "unknown") ??
-              [],
+              response.parts?.map(
+                (part) => part.inlineData?.mimeType ?? "unknown",
+              ) ?? [],
             outputPreview: toLogPreview(response.response),
           })),
         });

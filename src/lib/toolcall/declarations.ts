@@ -1,5 +1,9 @@
 import { type FunctionDeclaration, Type } from "@google/genai";
 import {
+  agentUiDeclarations,
+  agentUiFunctionsMap,
+} from "@/lib/toolcall/agent-ui/declarations";
+import {
   bankingDeclarations,
   bankingFunctionsMap,
 } from "@/lib/toolcall/banking/declarations";
@@ -295,6 +299,7 @@ export function getFunctionMap(
 ): Record<string, (...args: never[]) => unknown> {
   return {
     ...coreFunctionsMap,
+    ...agentUiFunctionsMap,
     ...devOnlyFunctionsMap,
     ...(options.bankingEnabled ? bankingFunctionsMap : {}),
   };
@@ -305,6 +310,7 @@ export function getFunctionDeclarations(
 ): FunctionDeclaration[] {
   return [
     ...coreDeclarations,
+    ...agentUiDeclarations,
     ...devOnlyDeclarations,
     ...(options.bankingEnabled ? bankingDeclarations : []),
   ];
