@@ -1,6 +1,7 @@
 import cn from "classnames";
 import { Minimize2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
 import ControlTray from "./components/control-tray/ControlTray";
 import { LiveClientOptions } from "./lib/live/types";
@@ -83,8 +84,12 @@ function FloatingCameraPreview({
     return null;
   }
 
-  return (
-    <div className="pointer-events-none fixed inset-0 z-40">
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div className="pointer-events-none fixed inset-0 z-[90]">
       <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" />
       <div className="absolute inset-0 flex items-center justify-center p-4 md:p-6 lg:p-10">
         <div className="pointer-events-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-white/60 bg-white/92 shadow-[0_24px_80px_rgba(15,23,42,0.24)] backdrop-blur-xl md:max-h-[calc(100vh-3rem)] lg:max-h-[calc(100vh-5rem)]">
@@ -114,7 +119,8 @@ function FloatingCameraPreview({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

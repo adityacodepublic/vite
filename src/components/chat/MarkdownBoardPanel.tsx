@@ -213,7 +213,7 @@ export function MarkdownBoardPanel() {
                       event.stopPropagation();
                       removeMarkdownCard(card.id);
                     }}
-                    className="absolute right-3 top-3 z-20 rounded-md p-1 text-zinc-400 opacity-0 transition hover:bg-zinc-100 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100"
+                    className="absolute right-3 top-3 z-20 rounded-md p-1 text-zinc-400 opacity-100 transition hover:bg-zinc-100 hover:text-red-600 focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                   >
                     <Trash2 size={14} />
                   </button>
