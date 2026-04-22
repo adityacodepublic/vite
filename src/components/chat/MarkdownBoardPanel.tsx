@@ -340,21 +340,65 @@ export function MarkdownBoardPanel() {
                             aria-haspopup="menu"
                             aria-expanded={isExportMenuOpen}
                             onClick={() => setIsExportMenuOpen((open) => !open)}
-                            data-agent-component={
-                              activeCardAgentComponent
-                                ? `${activeCardAgentComponent}_downloadMenu`
-                                : undefined
-                            }
-                            data-agent-actions="click"
-                            data-agent-desc-click={
-                              activeCard
-                                ? `Open download options for markdown card "${activeCard.title}".`
-                                : undefined
-                            }
                             className="inline-flex items-center rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
                           >
                             <Download size={14} />
                           </button>
+
+                          {/* hidden buttons */}
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute -z-10 h-0 w-0 overflow-hidden opacity-0"
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              tabIndex={-1}
+                              onClick={() => {
+                                void handleDownloadWord();
+                              }}
+                              disabled={isExportingWord}
+                              data-agent-component={
+                                activeCardAgentComponent
+                                  ? `${activeCardAgentComponent}_downloadDocx`
+                                  : undefined
+                              }
+                              data-agent-actions="click"
+                              data-agent-desc-click={
+                                activeCard
+                                  ? `Download markdown card "${activeCard.title}" as DOCX.`
+                                  : undefined
+                              }
+                            >
+                              {isExportingWord
+                                ? "Preparing DOCX..."
+                                : "Download DOCX"}
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              tabIndex={-1}
+                              onClick={() => {
+                                void handleDownloadPdf();
+                              }}
+                              disabled={isExportingPdf}
+                              data-agent-component={
+                                activeCardAgentComponent
+                                  ? `${activeCardAgentComponent}_downloadPdf`
+                                  : undefined
+                              }
+                              data-agent-actions="click"
+                              data-agent-desc-click={
+                                activeCard
+                                  ? `Download markdown card "${activeCard.title}" as PDF.`
+                                  : undefined
+                              }
+                            >
+                              {isExportingPdf
+                                ? "Preparing PDF..."
+                                : "Download PDF"}
+                            </button>
+                          </div>
 
                           {isExportMenuOpen ? (
                             <div
@@ -368,17 +412,6 @@ export function MarkdownBoardPanel() {
                                   void handleDownloadWord();
                                 }}
                                 disabled={isExportingWord}
-                                data-agent-component={
-                                  activeCardAgentComponent
-                                    ? `${activeCardAgentComponent}_downloadDocx`
-                                    : undefined
-                                }
-                                data-agent-actions="click"
-                                data-agent-desc-click={
-                                  activeCard
-                                    ? `Download markdown card "${activeCard.title}" as DOCX.`
-                                    : undefined
-                                }
                                 className="block w-full rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                               >
                                 {isExportingWord
@@ -392,17 +425,6 @@ export function MarkdownBoardPanel() {
                                   void handleDownloadPdf();
                                 }}
                                 disabled={isExportingPdf}
-                                data-agent-component={
-                                  activeCardAgentComponent
-                                    ? `${activeCardAgentComponent}_downloadPdf`
-                                    : undefined
-                                }
-                                data-agent-actions="click"
-                                data-agent-desc-click={
-                                  activeCard
-                                    ? `Download markdown card "${activeCard.title}" as PDF.`
-                                    : undefined
-                                }
                                 className="block w-full rounded-md px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
                               >
                                 {isExportingPdf
