@@ -49,7 +49,7 @@ export const agentUiDeclarations: FunctionDeclaration[] = [
         key: {
           type: Type.STRING,
           description:
-            "Required when action is key. Must be one of the keys declared by list_agent_ui.",
+            "Required when action is a keyboard key press. Must be one of the keys declared by list_agent_ui.",
         },
       },
       required: ["component", "action"],

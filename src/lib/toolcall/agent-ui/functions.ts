@@ -1,11 +1,9 @@
 export type AgentUiActionName = "click" | "full_write" | "key";
 
-export type AgentUiActionInput =
-  | null
-  | {
-      type: "string";
-      allowed?: string[];
-    };
+export type AgentUiActionInput = null | {
+  type: "string";
+  allowed?: string[];
+};
 
 export type AgentUiActionDescriptor = {
   name: AgentUiActionName;
@@ -33,11 +31,17 @@ export type AgentUiActionFailureCode =
   | "invalid_input"
   | "unsupported_element";
 
+export type AgentUiDiff = {
+  addedComponents: AgentUiComponentDescriptor[];
+  removedComponents: AgentUiComponentDescriptor[];
+};
+
 export type AgentUiActionSuccess = {
   ok: true;
   component: string;
   action: AgentUiActionName;
   summary: string;
+  uiDiff?: AgentUiDiff;
 };
 
 export type AgentUiActionFailure = {
@@ -250,9 +254,8 @@ function isElementVisible(element: HTMLElement) {
     return false;
   }
 
-  const computedStyle = element.ownerDocument.defaultView?.getComputedStyle(
-    element,
-  );
+  const computedStyle =
+    element.ownerDocument.defaultView?.getComputedStyle(element);
 
   if (computedStyle) {
     if (computedStyle.display === "none") {
@@ -544,9 +547,56 @@ export function listAgentUi(
   return scanAgentUi(targetDocument);
 }
 
-export function interactAgentUi(
+/**
+ * Compare two AgentUiScanResult snapshots and return which components were
+ * added or removed. Returns null when nothing changed.
+ */
+export function computeAgentUiDiff(
+  before: AgentUiScanResult,
+  after: AgentUiScanResult,
+): AgentUiDiff | null {
+  const beforeNames = new Set(before.components.map((c) => c.component));
+  const afterNames = new Set(after.components.map((c) => c.component));
+
+  const removedComponents = before.components.filter(
+    (c) => !afterNames.has(c.component),
+  );
+  const addedComponents = after.components.filter(
+    (c) => !beforeNames.has(c.component),
+  );
+
+  if (addedComponents.length === 0 && removedComponents.length === 0) {
+    return null;
+  }
+
+  return { addedComponents, removedComponents };
+}
+
+/**
+ * Wait for the next animation frame so DOM changes triggered by a click /
+ * key event have time to settle before we re-scan.
+ */
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+export async function interactAgentUi(
   args: AgentUiActionArgs,
   targetDocument: Document = document,
 ): Promise<AgentUiActionResult> {
-  return invokeAgentUiAction(args, targetDocument);
+  const before = scanAgentUi(targetDocument);
+  const result = await invokeAgentUiAction(args, targetDocument);
+
+  if (!result.ok) {
+    // Interaction failed — no point diffing.
+    return result;
+  }
+
+  // Wait one frame so React / other frameworks can flush DOM updates.
+  await waitForAnimationFrame();
+
+  const after = scanAgentUi(targetDocument);
+  const uiDiff = computeAgentUiDiff(before, after);
+
+  return uiDiff ? { ...result, uiDiff } : result;
 }
