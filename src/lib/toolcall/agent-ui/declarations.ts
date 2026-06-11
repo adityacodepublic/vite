@@ -19,7 +19,7 @@ export const agentUiDeclarations: FunctionDeclaration[] = [
   {
     name: "list_agent_ui",
     description:
-      "List the currently visible and enabled UI components that are explicitly registered for agent interaction. Always call this immediately before interact_agent_ui to get latest data, and only act on components returned here.",
+      "List the currently visible and enabled UI components that are explicitly registered for agent interaction. The data keeps on changing as you or the user interacts with the page, so call this to get the latest components list. If you dont know if certain functionality or component exists you can also call this tool to check it.",
     parameters: {
       type: Type.OBJECT,
       properties: {},
@@ -28,7 +28,7 @@ export const agentUiDeclarations: FunctionDeclaration[] = [
   {
     name: "interact_agent_ui",
     description:
-      "Perform a safe UI interaction on a currently listed component. Supported actions are click, full_write, and key. Call list_agent_ui first, then only act on a component returned by that latest list. Do not invent component names. you can use it to open cards, interact with chat tray etc.",
+      "Perform a safe UI interaction on listed component list given by list_agent_ui. Supported actions are click, full_write, and keyboard keys. Do not invent component names. you can use it to open cards by clicking them, interact with chat tray etc.",
     parameters: {
       type: Type.OBJECT,
       properties: {
