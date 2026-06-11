@@ -181,7 +181,11 @@ type ToolExecutor = (
   args: Record<string, unknown> | undefined,
 ) => unknown | Promise<unknown>;
 
-export function ChatScreen() {
+type ChatScreenProps = {
+  showToolCalls: boolean;
+};
+
+export function ChatScreen({ showToolCalls }: ChatScreenProps) {
   const {
     client,
     config,
@@ -236,6 +240,13 @@ export function ChatScreen() {
         (name, index) => name === configuredDeclarationNames[index],
       ),
     [activeDeclarationNames, configuredDeclarationNames],
+  );
+  const visibleMessages = useMemo(
+    () =>
+      showToolCalls
+        ? messages
+        : messages.filter((message) => message.kind !== "tool"),
+    [messages, showToolCalls],
   );
 
   useEffect(() => {
@@ -567,7 +578,7 @@ You are a voice-first document and financial assistant.
   return (
     <section className="w-full max-w-5xl px-4 pb-44 pt-6 md:px-8">
       <div className="space-y-3">
-        {messages.map((message: ChatMessage) => {
+        {visibleMessages.map((message: ChatMessage) => {
           const isUser = message.role === "user";
           const bubbleClass = isUser
             ? "ml-auto w-fit max-w-[72%] rounded-2xl rounded-br-sm bg-zinc-900 px-4 py-3 text-sm text-white"

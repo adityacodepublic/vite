@@ -11,7 +11,7 @@ import rehypeKatex from "rehype-katex";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Ref } from "react";
 import {
   downloadMarkdownAsPdf,
   downloadMarkdownAsWord,
@@ -41,7 +41,13 @@ const getMarkdownCardAgentComponentName = (index: number, title: string) =>
 
 type ChatStoreState = ReturnType<typeof useChatStore.getState>;
 
-export function MarkdownBoardPanel() {
+type MarkdownBoardPanelProps = {
+  panelRef?: Ref<HTMLElement>;
+};
+
+export function MarkdownBoardPanel({
+  panelRef,
+}: MarkdownBoardPanelProps = {}) {
   const { cards, activeCardId } = useChatStore(
     (state: ChatStoreState) => state.markdownBoard,
   );
@@ -172,6 +178,7 @@ export function MarkdownBoardPanel() {
 
   return (
     <motion.section
+      ref={panelRef}
       layoutScroll
       className="h-full w-screen shrink-0 overflow-y-auto bg-gradient-to-br from-[#f5f7fb] via-[#f4fbf8] to-[#eef5ff] px-5 pb-36 pt-6 md:px-8"
     >

@@ -7,12 +7,14 @@ import ControlTray from "./components/control-tray/ControlTray";
 import { LiveClientOptions } from "./lib/live/types";
 import { ChatScreen } from "./components/chat/ChatScreen";
 import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
+import { ToolCallToggleButton } from "./components/chat/ToolCallToggleButton";
 
 const TOKEN_SERVER_URL =
   (import.meta.env.VITE_GEMINI_TOKEN_SERVER_URL as string | undefined) ??
   "https://gemini-live-token-server.simpelskiff.workers.dev/token";
-const TOKEN_BYPASS_KEY =
-  import.meta.env.VITE_GEMINI_TOKEN_BYPASS_KEY as string | undefined;
+const TOKEN_BYPASS_KEY = import.meta.env.VITE_GEMINI_TOKEN_BYPASS_KEY as
+  | string
+  | undefined;
 
 const apiOptions: LiveClientOptions = {
   apiVersion: "v1alpha",
@@ -21,9 +23,7 @@ const apiOptions: LiveClientOptions = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(TOKEN_BYPASS_KEY
-          ? { "x-live-token-key": TOKEN_BYPASS_KEY }
-          : {}),
+        ...(TOKEN_BYPASS_KEY ? { "x-live-token-key": TOKEN_BYPASS_KEY } : {}),
       },
       body: JSON.stringify({
         model: "gemini-3.1-flash-live-preview",
@@ -131,8 +131,11 @@ function App() {
   const videoRef = useRef<HTMLVideoElement>(
     null,
   ) as React.RefObject<HTMLVideoElement>;
+  const boardPanelRef = useRef<HTMLElement>(null);
+  const boardHintRef = useRef<HTMLDivElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [isSnapshotGlowActive, setIsSnapshotGlowActive] = useState(false);
+  const [showToolCalls, setShowToolCalls] = useState(true);
   const [cameraUi, setCameraUi] = useState<CameraUiState>({
     isOverlayVisible: false,
     lastStartSource: null,
@@ -148,18 +151,63 @@ function App() {
       return;
     }
 
+    const normalizeWheelDelta = (event: WheelEvent) => {
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        return event.deltaY * 20;
+      }
+
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        return event.deltaY * container.clientWidth;
+      }
+
+      return event.deltaY;
+    };
+
     const onWheel = (event: WheelEvent) => {
       if (!event.shiftKey || event.deltaY === 0) {
         return;
       }
 
       event.preventDefault();
-      container.scrollLeft += event.deltaY * 15;
+      container.scrollLeft += normalizeWheelDelta(event) * 15;
     };
 
     container.addEventListener("wheel", onWheel, { passive: false });
+
     return () => {
       container.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = horizontalPaneRef.current;
+    const boardPanel = boardPanelRef.current;
+    const boardHint = boardHintRef.current;
+    if (
+      !container ||
+      !boardPanel ||
+      !boardHint ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const shouldShow = entry.intersectionRatio < 0.6;
+        boardHint.classList.toggle("md:block", shouldShow);
+        boardHint.classList.toggle("md:hidden", !shouldShow);
+      },
+      {
+        root: container,
+        threshold: [0, 0.6, 1],
+      },
+    );
+
+    observer.observe(boardPanel);
+
+    return () => {
+      observer.disconnect();
     };
   }, []);
 
@@ -214,6 +262,10 @@ function App() {
     }));
   };
 
+  const toolCallToggleLabel = showToolCalls
+    ? "Hide tool calls"
+    : "Show tool calls";
+
   return (
     <div className="App">
       <LiveAPIProvider options={apiOptions}>
@@ -231,7 +283,16 @@ function App() {
             <div className="flex h-full w-[200vw]">
               <section className="h-full w-screen shrink-0 overflow-y-auto">
                 <div className="flex flex-col items-center pb-28">
-                  <ChatScreen />
+                  <div className="w-full px-4 pt-4 md:px-8">
+                    <div className="flex items-center justify-start">
+                      <ToolCallToggleButton
+                        pressed={showToolCalls}
+                        label={toolCallToggleLabel}
+                        onClick={() => setShowToolCalls((current) => !current)}
+                      />
+                    </div>
+                  </div>
+                  <ChatScreen showToolCalls={showToolCalls} />
                   <video
                     className={cn(
                       "mb-8 mt-3 max-h-[fit-content] max-w-[90%] flex-grow rounded-[32px]",
@@ -250,7 +311,7 @@ function App() {
                 </div>
               </section>
 
-              <MarkdownBoardPanel />
+              <MarkdownBoardPanel panelRef={boardPanelRef} />
             </div>
           </div>
 
@@ -265,7 +326,10 @@ function App() {
             }
           />
 
-          <div className="invisible md:visible lg:visible pointer-events-none fixed right-4 top-4 z-30 rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm">
+          <div
+            ref={boardHintRef}
+            className="pointer-events-none fixed right-4 top-4 z-30 hidden rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-600 shadow-sm backdrop-blur-sm md:block"
+          >
             Shift + Scroll to open board
           </div>
 
