@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.47.0",
+    "@google/genai": "^2.31.0",
     "@json-render/core": "^0.16.0",
     "@json-render/react": "^0.16.0",
     "@json-render/shadcn": "^0.16.0",

@@ -19,7 +19,7 @@ import { AltairChart } from "./AltairChart";
 import { ChatRenderErrorBoundary } from "./ChatRenderErrorBoundary";
 import { AttachmentProgressCircle } from "./AttachmentProgressCircle";
 
-const MODEL_NAME = "models/gemini-3.1-flash-live-preview";
+const MODEL_NAME = "models/gemini-3.8-live";
 
 function extractText(content: LiveServerContent): string {
   const parts = content.modelTurn?.parts ?? [];
@@ -182,10 +182,14 @@ type ToolExecutor = (
 ) => unknown | Promise<unknown>;
 
 type ChatScreenProps = {
-  showToolCalls: boolean;
+  showToolCalls?: boolean;
+  enableTranscription?: boolean;
 };
 
-export function ChatScreen({ showToolCalls }: ChatScreenProps) {
+export function ChatScreen({
+  showToolCalls = true,
+  enableTranscription = false,
+}: ChatScreenProps) {
   const {
     client,
     config,
@@ -197,6 +201,7 @@ export function ChatScreen({ showToolCalls }: ChatScreenProps) {
   } = useLiveAPIContext();
   const {
     messages,
+    addUserTranscription,
     addAssistantTextChunk,
     finalizeAssistantText,
     addToolResult,
@@ -245,7 +250,7 @@ export function ChatScreen({ showToolCalls }: ChatScreenProps) {
     () =>
       showToolCalls
         ? messages
-        : messages.filter((message) => message.kind !== "tool"),
+        : messages.filter((message: ChatMessage) => message.kind !== "tool"),
     [messages, showToolCalls],
   );
 
@@ -263,6 +268,12 @@ export function ChatScreen({ showToolCalls }: ChatScreenProps) {
       speechConfig: {
         voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
       },
+      ...(enableTranscription
+        ? {
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
+          }
+        : {}),
       systemInstruction: {
         parts: [
           {
@@ -279,7 +290,25 @@ You are a voice-first document and financial assistant.
       },
       tools: [{ functionDeclarations }],
     });
-  }, [bankingEnabled, functionDeclarations, setConfig, setModel]);
+  }, [bankingEnabled, enableTranscription, functionDeclarations, setConfig, setModel]);
+
+  const previousEnableTranscriptionRef = useRef(enableTranscription);
+  useEffect(() => {
+    if (previousEnableTranscriptionRef.current === enableTranscription) {
+      return;
+    }
+    previousEnableTranscriptionRef.current = enableTranscription;
+    if (connected) {
+      void (async () => {
+        try {
+          await disconnect();
+          await connect();
+        } catch (error) {
+          console.warn("[TranscriptionToggle] Reconnect failed:", error);
+        }
+      })();
+    }
+  }, [enableTranscription, connected, connect, disconnect]);
 
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -315,15 +344,26 @@ You are a voice-first document and financial assistant.
     let cancelled = false;
     reconnectInFlightRef.current = true;
 
-    const reconnectWithUpdatedTools = async () => {
+    const syncWithUpdatedTools = async () => {
       try {
+        if (connected) {
+          const updated = client.sendContextUpdate({
+            tools: { tools: [{ functionDeclarations }] },
+          });
+          if (updated) {
+            console.log(
+              "[ToolConfig][banking-toggle] updated tools dynamically via sendContextUpdate",
+            );
+            return;
+          }
+        }
         await disconnect();
         if (cancelled) {
           return;
         }
         await connect();
       } catch (error) {
-        console.error("[ToolConfig][banking-toggle.reconnect] failed", error);
+        console.error("[ToolConfig][banking-toggle.sync] failed", error);
       } finally {
         reconnectInFlightRef.current = false;
         reconnectTargetRef.current = null;
@@ -333,16 +373,19 @@ You are a voice-first document and financial assistant.
       }
     };
 
-    void reconnectWithUpdatedTools();
+    void syncWithUpdatedTools();
 
     return () => {
       cancelled = true;
     };
   }, [
     bankingEnabled,
+    client,
     configMatchesCurrentDeclarations,
     connect,
+    connected,
     disconnect,
+    functionDeclarations,
     setApplyingBankingToggle,
   ]);
 
@@ -358,6 +401,30 @@ You are a voice-first document and financial assistant.
     };
 
     const onTurnComplete = () => {
+      finalizeAssistantText();
+    };
+
+    const onInputTranscription = ({
+      text,
+      isFinal,
+    }: {
+      text: string;
+      isFinal: boolean;
+    }) => {
+      if (text.trim()) {
+        console.log("[LiveAPI][inputTranscription]", { text, isFinal });
+        addUserTranscription(text, isFinal);
+      }
+    };
+
+    const onOutputTranscription = ({ text }: { text: string }) => {
+      if (text.trim()) {
+        console.log("[LiveAPI][outputTranscription]", { text });
+        addAssistantTextChunk(text);
+      }
+    };
+
+    const onInterrupted = () => {
       finalizeAssistantText();
     };
 
@@ -558,11 +625,17 @@ You are a voice-first document and financial assistant.
     client.on("content", onContent);
     client.on("turncomplete", onTurnComplete);
     client.on("toolcall", onToolCall);
+    client.on("inputtranscription", onInputTranscription);
+    client.on("outputtranscription", onOutputTranscription);
+    client.on("interrupted", onInterrupted);
 
     return () => {
       client.off("content", onContent);
       client.off("turncomplete", onTurnComplete);
       client.off("toolcall", onToolCall);
+      client.off("inputtranscription", onInputTranscription);
+      client.off("outputtranscription", onOutputTranscription);
+      client.off("interrupted", onInterrupted);
     };
   }, [
     addAltairSpec,
@@ -570,6 +643,7 @@ You are a voice-first document and financial assistant.
     addJsonRenderSpec,
     addSystemMessage,
     addToolResult,
+    addUserTranscription,
     client,
     finalizeAssistantText,
     functionMap,

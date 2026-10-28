@@ -4,7 +4,11 @@ import { LiveClientOptions } from "@/lib/live/types";
 import { AudioStreamer } from "@/lib/live/audio-streamer";
 import { audioContext } from "@/lib/live/chat-utils";
 import VolMeterWorket from "../lib/worklets/vol-meter";
-import { LiveConnectConfig, LiveServerSessionResumptionUpdate } from "@google/genai";
+import {
+  LiveClientContextUpdate,
+  LiveConnectConfig,
+  LiveServerSessionResumptionUpdate,
+} from "@google/genai";
 
 export type UseLiveAPIResults = {
   client: GenAILiveClient;
@@ -16,6 +20,7 @@ export type UseLiveAPIResults = {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   resumeSession: () => Promise<void>;
+  sendContextUpdate: (update: LiveClientContextUpdate) => boolean;
   canResume: boolean;
   volume: number;
 };
@@ -30,7 +35,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
   const lastOutputVolumeUIUpdateRef = useRef(0);
 
   const [model, setModel] = useState<string>(
-    "models/gemini-3.1-flash-live-preview",
+    "models/gemini-3.8-live",
   );
   const [config, setConfig] = useState<LiveConnectConfig>({});
   const [connected, setConnected] = useState(false);
@@ -179,6 +184,13 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
     }
   }, [client, model, buildConnectConfig]);
 
+  const sendContextUpdate = useCallback(
+    (update: LiveClientContextUpdate) => {
+      return client.sendContextUpdate(update);
+    },
+    [client],
+  );
+
   return useMemo(
     () => ({
       client,
@@ -190,6 +202,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       connect,
       disconnect,
       resumeSession,
+      sendContextUpdate,
       canResume,
       volume,
     }),
@@ -203,6 +216,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
       connect,
       disconnect,
       resumeSession,
+      sendContextUpdate,
       canResume,
       volume,
     ],

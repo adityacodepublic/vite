@@ -1,6 +1,5 @@
 import {
   GoogleGenAI,
-  FunctionCallingConfigMode,
   mcpToTool,
 } from "@google/genai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";

@@ -2,6 +2,7 @@ import {
   Content,
   GoogleGenAI,
   LiveCallbacks,
+  LiveClientContextUpdate,
   LiveClientToolResponse,
   LiveConnectConfig,
   LiveServerContent,
@@ -58,6 +59,10 @@ export interface LiveClientEventTypes {
   turncomplete: () => void;
   // Emitted when session resumption state is updated
   sessionresumptionupdate: (update: LiveServerSessionResumptionUpdate) => void;
+  // Emitted when user input transcription is received
+  inputtranscription: (transcription: { text: string; isFinal: boolean }) => void;
+  // Emitted when model output transcription is received
+  outputtranscription: (transcription: { text: string }) => void;
 }
 
 /**
@@ -166,7 +171,10 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     }
     if (ArrayBuffer.isView(data)) {
       const view = data as ArrayBufferView;
-      return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+      return view.buffer.slice(
+        view.byteOffset,
+        view.byteOffset + view.byteLength,
+      ) as ArrayBuffer;
     }
     return null;
   }
@@ -398,6 +406,13 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     this.clearTimers();
     this.log("client.reconnect", reason);
 
+    const callbacks: LiveCallbacks = {
+      onopen: this.onopen,
+      onmessage: this.onmessage,
+      onerror: this.onerror,
+      onclose: this.onclose,
+    };
+
     try {
       const apiKey = await this.resolveApiKey();
       this.client = this.createClient(apiKey);
@@ -405,13 +420,6 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       this.suppressCloseRecovery = true;
       this._session?.close();
       this._session = null;
-
-      const callbacks: LiveCallbacks = {
-        onopen: this.onopen,
-        onmessage: this.onmessage,
-        onerror: this.onerror,
-        onclose: this.onclose,
-      };
 
       this._session = await this.client.live.connect({
         model: this._model,
@@ -589,6 +597,26 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
         this.emit("turncomplete");
       }
 
+      if (serverContent.inputTranscription?.text) {
+        this.log("server.inputTranscription", serverContent.inputTranscription.text);
+        this.emit("inputtranscription", {
+          text: serverContent.inputTranscription.text,
+          isFinal: true,
+        });
+      } else if (serverContent.interimInputTranscription?.text) {
+        this.emit("inputtranscription", {
+          text: serverContent.interimInputTranscription.text,
+          isFinal: false,
+        });
+      }
+
+      if (serverContent.outputTranscription?.text) {
+        this.log("server.outputTranscription", serverContent.outputTranscription.text);
+        this.emit("outputtranscription", {
+          text: serverContent.outputTranscription.text,
+        });
+      }
+
       if ("modelTurn" in serverContent) {
         let parts: Part[] = serverContent.modelTurn?.parts || [];
 
@@ -673,6 +701,26 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   sendAudioStreamEnd() {
     this.session?.sendRealtimeInput({ audioStreamEnd: true });
     this.log(`client.realtimeInput`, "audioStreamEnd");
+  }
+
+  sendContextUpdate(contextUpdate: LiveClientContextUpdate): boolean {
+    if (!this.session) {
+      console.warn("[LiveAPI] Cannot send context update: session not connected");
+      return false;
+    }
+    const sessionWithUpdate = this.session as Session & {
+      sendContextUpdate?: (params: LiveClientContextUpdate) => void;
+    };
+    if (typeof sessionWithUpdate.sendContextUpdate === "function") {
+      sessionWithUpdate.sendContextUpdate(contextUpdate);
+      this.log("client.contextUpdate", contextUpdate as unknown as StreamingLog["message"]);
+      return true;
+    } else {
+      console.warn(
+        "[LiveAPI] session.sendContextUpdate is not supported by current SDK session",
+      );
+      return false;
+    }
   }
 
   /**

@@ -6,7 +6,7 @@ if (!API_KEY) {
   throw new Error("Set VITE_GEMINI_API_KEY or GEMINI_API_KEY");
 }
 
-const MODEL = "models/gemini-3.1-flash-live-preview";
+const MODEL = "models/gemini-3.8-live";
 const FRAME_PATH = process.argv[2] || "public/logo192.png";
 const RUNS = Number(process.argv[3] || "2");
 const VIDEO_FPS = Number(process.argv[4] || "1");

@@ -6,7 +6,7 @@ if (!API_KEY) {
   throw new Error("Set VITE_GEMINI_API_KEY or GEMINI_API_KEY");
 }
 
-const MODEL = "models/gemini-3.1-flash-live-preview";
+const MODEL = "models/gemini-3.8-live";
 const FRAME_PATH = process.argv[2] || "public/logo192.png";
 const REPEATS = Number(process.argv[3] || "3");
 
@@ -101,7 +101,7 @@ async function runScenario(
       onopen: () => {
         console.log(`[${scenario}][${speed}x][#${run}] open`);
       },
-      onmessage: (_msg: LiveServerMessage) => {
+      onmessage: () => {
         serverMessages += 1;
       },
       onerror: (event: unknown) => {

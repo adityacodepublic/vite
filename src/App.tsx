@@ -8,6 +8,7 @@ import { LiveClientOptions } from "./lib/live/types";
 import { ChatScreen } from "./components/chat/ChatScreen";
 import { MarkdownBoardPanel } from "./components/chat/MarkdownBoardPanel";
 import { ToolCallToggleButton } from "./components/chat/ToolCallToggleButton";
+import { TranscriptionToggleButton } from "./components/chat/TranscriptionToggleButton";
 
 const TOKEN_SERVER_URL =
   (import.meta.env.VITE_GEMINI_TOKEN_SERVER_URL as string | undefined) ??
@@ -26,7 +27,7 @@ const apiOptions: LiveClientOptions = {
         ...(TOKEN_BYPASS_KEY ? { "x-live-token-key": TOKEN_BYPASS_KEY } : {}),
       },
       body: JSON.stringify({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-3.8-live",
       }),
     });
 
@@ -262,9 +263,15 @@ function App() {
     }));
   };
 
+  const [enableTranscription, setEnableTranscription] = useState(false);
+
   const toolCallToggleLabel = showToolCalls
     ? "Hide tool calls"
     : "Show tool calls";
+
+  const transcriptionToggleLabel = enableTranscription
+    ? "Disable speech transcription"
+    : "Enable speech transcription";
 
   return (
     <div className="App">
@@ -284,15 +291,25 @@ function App() {
               <section className="h-full w-screen shrink-0 overflow-y-auto">
                 <div className="flex flex-col items-center pb-28">
                   <div className="w-full px-4 pt-4 md:px-8">
-                    <div className="flex items-center justify-start">
+                    <div className="flex items-center justify-start gap-2">
                       <ToolCallToggleButton
                         pressed={showToolCalls}
                         label={toolCallToggleLabel}
                         onClick={() => setShowToolCalls((current) => !current)}
                       />
+                      <TranscriptionToggleButton
+                        pressed={enableTranscription}
+                        label={transcriptionToggleLabel}
+                        onClick={() =>
+                          setEnableTranscription((current) => !current)
+                        }
+                      />
                     </div>
                   </div>
-                  <ChatScreen showToolCalls={showToolCalls} />
+                  <ChatScreen
+                    showToolCalls={showToolCalls}
+                    enableTranscription={enableTranscription}
+                  />
                   <video
                     className={cn(
                       "mb-8 mt-3 max-h-[fit-content] max-w-[90%] flex-grow rounded-[32px]",

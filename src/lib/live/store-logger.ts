@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { StreamingLog } from "@/lib/live/types";
-import { mockLogs } from "@/components/ui/side-panel/logger/mock-logs";
 
 interface StoreLoggerState {
   maxLogs: number;

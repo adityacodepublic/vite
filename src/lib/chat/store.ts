@@ -73,8 +73,10 @@ type MarkdownBoardState = {
 type ChatState = {
   messages: ChatMessage[];
   streamingAssistantId: string | null;
+  streamingUserId: string | null;
   markdownBoard: MarkdownBoardState;
   addUserText: (text: string) => void;
+  addUserTranscription: (text: string, isFinal?: boolean) => void;
   addAssistantTextChunk: (text: string) => void;
   finalizeAssistantText: () => void;
   addToolResult: (name: string, output: unknown) => void;
@@ -186,9 +188,10 @@ const buildMarkdownCard = (input: MarkdownBoardCardInput): MarkdownBoardCard => 
 
 const initialMarkdownBoard = loadMarkdownBoard();
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   streamingAssistantId: null,
+  streamingUserId: null,
   markdownBoard: initialMarkdownBoard,
   addUserText: (text) => {
     const trimmed = text.trim();
@@ -208,6 +211,41 @@ export const useChatStore = create<ChatState>((set) => ({
         },
       ],
     }));
+  },
+  addUserTranscription: (text, isFinal = false) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    set((state) => {
+      if (state.streamingUserId) {
+        return {
+          messages: state.messages.map((message) =>
+            message.id === state.streamingUserId && message.kind === "text"
+              ? { ...message, text: trimmed, streaming: !isFinal }
+              : message,
+          ),
+          streamingUserId: isFinal ? null : state.streamingUserId,
+        };
+      }
+
+      const id = createId();
+      return {
+        streamingUserId: isFinal ? null : id,
+        messages: [
+          ...state.messages,
+          {
+            id,
+            kind: "text",
+            role: "user",
+            createdAt: Date.now(),
+            text: trimmed,
+            streaming: !isFinal,
+          },
+        ],
+      };
+    });
   },
   addAssistantTextChunk: (text) => {
     if (!text) {
@@ -371,7 +409,7 @@ export const useChatStore = create<ChatState>((set) => ({
     }));
   },
   listMarkdownCards: () => {
-    const state = useChatStore.getState().markdownBoard;
+    const state = get().markdownBoard;
     return {
       cards: state.cards.map((card) => ({ id: card.id, title: card.title })),
       openCardId: state.activeCardId,
@@ -379,8 +417,7 @@ export const useChatStore = create<ChatState>((set) => ({
     };
   },
   getMarkdownCard: (cardId) =>
-    useChatStore
-      .getState()
+    get()
       .markdownBoard.cards.find((card) => card.id === cardId) ?? null,
   createMarkdownCard: (input) => {
     const nextCard = buildMarkdownCard(input);
@@ -397,7 +434,7 @@ export const useChatStore = create<ChatState>((set) => ({
     return nextCard;
   },
   replaceMarkdownCard: (cardId, input) => {
-    const store = useChatStore.getState();
+    const store = get();
     const existing = store.markdownBoard.cards.find((card) => card.id === cardId);
     if (!existing) {
       throw new Error(`Markdown card '${cardId}' was not found.`);
@@ -486,6 +523,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({
       messages: [],
       streamingAssistantId: null,
+      streamingUserId: null,
       markdownBoard: {
         ...state.markdownBoard,
         activeCardId: null,

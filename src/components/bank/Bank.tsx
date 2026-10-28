@@ -82,7 +82,10 @@ function BankDetailsComponent() {
         setTool(fc.name);
         try {
           setIsLoading(true);
-          response = await functionsmap[fc.name](fc.args);
+          const executor = functionsmap[fc.name] as
+            | ((args?: unknown) => unknown)
+            | undefined;
+          response = executor ? await executor(fc.args) : undefined;
           console.log(response);
         } catch (error) {
           console.error(error);

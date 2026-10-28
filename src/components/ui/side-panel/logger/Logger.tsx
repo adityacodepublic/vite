@@ -130,7 +130,7 @@ const ToolCallLog = memo(({ message }: Message) => {
   const { toolCall } = message as { toolCall: LiveServerToolCall };
   return (
     <div className={cn("rich-log tool-call")}>
-      {toolCall.functionCalls?.map((fc, i) => (
+      {toolCall.functionCalls?.map((fc) => (
         <div key={fc.id} className="part part-functioncall">
           <h5>Function call: {fc.name}</h5>
           <SyntaxHighlighter language="json" style={dark}>

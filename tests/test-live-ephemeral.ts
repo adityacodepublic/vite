@@ -6,7 +6,7 @@ const TOKEN_ENDPOINT =
 const ALLOWED_ORIGIN =
   process.env.TOKEN_REQUEST_ORIGIN ?? "https://modal2-pi.vercel.app";
 const TOKEN_BYPASS_KEY = process.env.VITE_GEMINI_TOKEN_BYPASS_KEY;
-const MODEL = "gemini-3.1-flash-live-preview";
+const MODEL = "gemini-3.8-live";
 
 async function getEphemeralToken() {
   const response = await fetch(TOKEN_ENDPOINT, {
